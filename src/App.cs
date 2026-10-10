@@ -112,6 +112,9 @@ namespace DeskShift {
             var undo=Button("撤销上次切换",false);undo.Click+=(s,e)=>Undo();var folder=Button("打开数据目录",false);folder.Click+=(s,e)=>Open(library.Root);var actions=new FlowLayoutPanel{Height=46,Width=640,Margin=new Padding(0,5,0,0)};actions.Controls.AddRange(new Control[]{undo,folder});settingsPage.Controls.Add(actions);
             var browserPage=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoScroll=true,FlowDirection=FlowDirection.TopDown,WrapContents=false,Visible=false,Margin=new Padding(0)};pages.Controls.Add(browserPage);
             connection=Label("新标签页壁纸与配色 · 常用网址\n等待扩展连接",9,FontStyle.Regular,new Point(18,52),new Size(590,42));edgeConnection=Label("新标签页壁纸与配色 · 常用网址\n等待扩展连接",9,FontStyle.Regular,new Point(18,52),new Size(590,42));browserPage.Controls.Add(BrowserCard("Google Chrome",connection,"chrome"));browserPage.Controls.Add(BrowserCard("Microsoft Edge",edgeConnection,"edge"));
+            var automaticTheme=new Toggle{Checked=library.State.AutoBrowserTheme,AccessibleName="自动加载标题栏主题（试验）"};automaticTheme.CheckedChanged+=(s,e)=>{library.State.AutoBrowserTheme=automaticTheme.Checked;library.Save();};
+            var targetBrowser=Interface.Picker(148);targetBrowser.Items.AddRange(new object[]{"Microsoft Edge","Google Chrome"});targetBrowser.SelectedIndex=library.State.AutoThemeBrowser=="chrome"?1:0;targetBrowser.SelectedIndexChanged+=(s,e)=>{library.State.AutoThemeBrowser=targetBrowser.SelectedIndex==1?"chrome":"edge";library.Save();};
+            browserPage.Controls.Add(SettingsGroup("标题栏自动加载 · 试验",new[]{SettingRow("自动加载主题","需全屏过渡、单窗口及默认配置；会暂时占用焦点。",automaticTheme),SettingRow("目标浏览器","需事先打开扩展页的开发者模式。",targetBrowser)}));
             browserPage.Controls.Add(Label("新标签页只保留搜索和常用网址，不显示时间、日期。",9,FontStyle.Regular,new Point(),new Size(600,32)));browserPage.Controls.Add(Label("安装扩展会替换新标签页；标签栏配色仍需手动加载主题。",9,FontStyle.Regular,new Point(),new Size(620,32)));
             Action resizeGroups=()=>{int width=Math.Max(480,pages.ClientSize.Width-20);foreach(Control item in settingsPage.Controls)item.Width=width;foreach(Control item in browserPage.Controls)item.Width=width;};pages.Resize+=(s,e)=>resizeGroups();
             hero.Resize+=(s,e)=>{title.Width=subtitle.Width=paletteLabel.Width=Math.Max(120,hero.Width-308);};
@@ -152,6 +155,17 @@ namespace DeskShift {
         }
         void Progress(string text) {if(!IsDisposed && IsHandleCreated)BeginInvoke((Action)(()=>{if(!IsDisposed)Status(text);}));}
         async Task WarmTransitions(Palette palette){try{await TransitionWindowPool.WarmUpAsync(palette);}catch{/* A failed idle warmup must not prevent wallpaper switching. */}}
+        async Task<string> TryBrowserTheme() {
+            if(!library.State.AutoBrowserTheme)return "";
+            var mask=transition;if(mask==null||!mask.Covered)return "；自动加载跳过：全屏覆盖未就绪";
+            string browser=library.State.AutoThemeBrowser=="chrome"?"chrome":"edge";
+            string folder=BrowserThemeLoader.Snapshot(Path.Combine(library.Root,"browser-themes",browser,"current"),library.Root);
+            using(var cancel=new CancellationTokenSource()) {
+                var load=Task.Run(()=>new BrowserThemeLoader(cancel.Token,()=>mask.Covered).Run(browser,folder));
+                if(await Task.WhenAny(load,Task.Delay(6800),mask.WhenDismissed)!=load){cancel.Cancel();return "；自动加载已取消或超时，请检查浏览器";}
+                return "；"+await load;
+            }
+        }
         async Task WithTransition(Palette palette,Func<Task> action) {
             if(!library.State.FullscreenTransition){await action();return;}
             await startupWarmup;
@@ -167,8 +181,8 @@ namespace DeskShift {
         protected override bool ProcessCmdKey(ref Message msg,Keys keyData) {if(keyData==Keys.Escape && transition!=null){transition.Dismiss();return true;}return base.ProcessCmdKey(ref msg,keyData);}
         async void Apply() {
             if(selected==null || busy)return;var wallpaper=selected;var palette=library.Effective(wallpaper);bool syncSystem=system.Checked;
-            SetBusy(true);Status("正在应用桌面…");
-            try{Status("正在后台准备原尺寸图片与主题…");PreparedTheme prepared=null;await RunBackground(()=>prepared=WindowsTheme.Prepare(library,wallpaper,palette,syncSystem));await WithTransition(palette,async()=>{await RunBackground(()=>{WindowsTheme.Apply(library,prepared,Progress);library.State.ActiveId=wallpaper.Id;library.State.ActivePalette=palette;library.Save();});UpdateBrowserThemes();ShowSelected();await Task.Delay(120);});Status("壁纸已切换"+(syncSystem?"，Windows 主题已提交":"")+"；已向 Chrome / Edge 新标签页发布壁纸与配色。");}catch(Exception ex){Error(ex);}finally{SetBusy(false);}
+            SetBusy(true);Status("正在应用桌面…");string browserResult="";
+            try{Status("正在后台准备原尺寸图片与主题…");PreparedTheme prepared=null;await RunBackground(()=>prepared=WindowsTheme.Prepare(library,wallpaper,palette,syncSystem));await WithTransition(palette,async()=>{await RunBackground(()=>{WindowsTheme.Apply(library,prepared,Progress);library.State.ActiveId=wallpaper.Id;library.State.ActivePalette=palette;library.Save();});UpdateBrowserThemes();ShowSelected();browserResult=await TryBrowserTheme();await Task.Delay(120);});Status("壁纸已切换"+(syncSystem?"，Windows 主题已提交":"")+"；已向 Chrome / Edge 新标签页发布壁纸与配色。"+browserResult);}catch(Exception ex){Error(ex);}finally{SetBusy(false);}
         }
         void Next() {if(busy || library.State.Wallpapers.Count==0)return;int i=library.State.Wallpapers.FindIndex(w=>w.Id==library.State.ActiveId);selected=library.State.Wallpapers[(i+1)%library.State.Wallpapers.Count];ShowSelected();Apply();}
         void SwitchWallpaper(Wallpaper wallpaper){if(busy || !library.State.Wallpapers.Contains(wallpaper))return;selected=wallpaper;ShowSelected();Apply();}
@@ -181,6 +195,7 @@ namespace DeskShift {
     static class Program {
         [STAThread] static void Main(string[] args) {
             Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
+            if(args.Contains("--theme-automation-test")){BrowserThemeLoader.Test();return;}
             if(args.Contains("--self-test")){
                 // Keep a real UI message loop alive while hidden-window tests await first paint.
                 using(var dispatcher=new Control()){var handle=dispatcher.Handle;dispatcher.BeginInvoke((Action)(()=>{try{SelfTest.Run();Environment.Exit(0);}catch(Exception e){System.IO.File.WriteAllText("test-output/failure.txt",e.ToString());Environment.Exit(1);}}));Application.Run();}return;

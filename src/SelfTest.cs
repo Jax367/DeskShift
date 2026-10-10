@@ -14,6 +14,10 @@ namespace DeskShift {
         static void Check(bool value,string message) {if(!value)throw new Exception(message);}
         public static void Run() {
             string root=Path.Combine(Directory.GetCurrentDirectory(),"test-output");Directory.CreateDirectory(root);
+            Check(!new Settings().AutoBrowserTheme,"Experimental automatic theme loading is off by default");
+            bool rejected=false;try{BrowserThemeLoader.ValidateManifest("{\"manifest_version\":3,\"name\":\"bad\",\"version\":\"1.0\",\"permissions\":[\"history\"],\"theme\":{\"colors\":{\"frame\":[1,2,3]}}}");}catch(InvalidOperationException){rejected=true;}Check(rejected,"Theme loader rejects runtime permissions");
+            rejected=false;try{BrowserThemeLoader.ValidateManifest("{\"theme\":{\"colors\":{\"frame\":[999,2,3]}}}");}catch(InvalidOperationException){rejected=true;}Check(rejected,"Theme loader rejects invalid RGB");
+            Check(new BrowserThemeLoader(CancellationToken.None,()=>false).Run("edge","unused").StartsWith("跳过"),"Missing cover prevents all browser input");
             string assets=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"assets","wallpapers");
             var lib=new Library(Path.Combine(root,"data-"+Guid.NewGuid().ToString("N")),assets);
             Check(lib.State.Wallpapers.Count==3,"Initial wallpaper count");

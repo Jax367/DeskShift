@@ -64,6 +64,8 @@ namespace DeskShift {
         public string TransitionStyle {get;set;}
         public string Mode {get;set;}
         public bool ShowFloatingOrb {get;set;}
+        public bool AutoBrowserTheme {get;set;}
+        public string AutoThemeBrowser {get;set;}
         public bool HasOrbPosition {get;set;}
         public int OrbX {get;set;}
         public int OrbY {get;set;}

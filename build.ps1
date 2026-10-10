@@ -5,7 +5,7 @@ $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 New-Item -ItemType Directory -Force $OutputDirectory | Out-Null
 & "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot\tools\make-icon.ps1"
 if ($LASTEXITCODE -ne 0) { throw '图标生成失败' }
-& $compiler /nologo /target:winexe /optimize+ /platform:anycpu /win32icon:assets\DeskShift.ico "/out:$OutputDirectory\DeskShift.exe" /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.Web.Extensions.dll src\*.cs
+& $compiler /nologo /target:winexe /optimize+ /platform:anycpu /win32icon:assets\DeskShift.ico "/out:$OutputDirectory\DeskShift.exe" /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.Web.Extensions.dll "/reference:$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\WPF\UIAutomationClient.dll" "/reference:$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\WPF\UIAutomationTypes.dll" "/reference:$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\WPF\WindowsBase.dll" src\*.cs
 if ($LASTEXITCODE -ne 0) { throw '编译失败' }
 Copy-Item -Recurse -Force assets "$OutputDirectory\"
 foreach ($browserName in @('chrome','edge')) {

@@ -15,9 +15,12 @@ dist-minimal/
 dist-shortcuts/
 dist-refined/
 dist-dark-browser/
+dist-auto-theme/
+backups/
 *.pak
 test-output/
 *.user
 *.pem
 *.crx
 DeskShift-portable.zip
+DeskShift-auto-theme-experimental.zip

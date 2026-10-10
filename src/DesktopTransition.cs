@@ -89,7 +89,7 @@ namespace DeskShift {
         public static readonly string[] Styles={"随机","斜向扫幕","对开幕帘","交错条带","圆形扩散","方格翻涌"};
         static readonly Random random=new Random();static int previousStyle=-1;
         internal static int PickStyle(string name){int chosen=Array.IndexOf(Styles,name)-1;if(chosen>=0)return chosen;int next=random.Next(5);if(next==previousStyle)next=(next+1+random.Next(4))%5;previousStyle=next;return next;}
-        readonly Stopwatch clock=new Stopwatch(),lifetime=new Stopwatch();readonly bool showWindows;readonly int maximumDuration;TaskCompletionSource<bool> coverCompleted,revealCompleted;int stage;bool dismissed;
+        readonly Stopwatch clock=new Stopwatch(),lifetime=new Stopwatch();readonly bool showWindows;readonly int maximumDuration;TaskCompletionSource<bool> coverCompleted,revealCompleted;volatile int stage;volatile bool dismissed;
         internal bool Covered {get{return stage==1 && !dismissed;}}
         internal bool Dismissed {get{return dismissed;}}
         internal Task WhenDismissed {get{return revealCompleted.Task;}}
