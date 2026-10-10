@@ -1,0 +1,12 @@
+dist/
+dist-smooth/
+dist-fullscreen/
+dist-effects/
+dist-ready/
+dist-playful/
+dist-design/
+dist-prewarmed/
+dist-tray-menu/
+test-output/
+*.user
+DeskShift-portable.zip
