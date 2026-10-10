@@ -127,10 +127,10 @@ Start-Process .\dist\DeskShift.exe -ArgumentList '--smoke' -Wait
 
 <div align="center">
 <a href="https://github.com/journey-ad/Moe-Counter">
-<img src="https://count.getloli.com/@jax367-deskshift?name=jax367-deskshift&amp;theme=miku&amp;padding=7&amp;offset=0&amp;align=center&amp;scale=0.8&amp;pixelated=1&amp;darkmode=auto" alt="DeskShift Moe Counter — Miku theme" />
+<img src="https://moecount.lolihouse.top/get/@jax367-deskshift?theme=moebooru" alt="DeskShift Moe Counter — Moebooru theme" />
 </a>
 
-[Moe Counter](https://github.com/journey-ad/Moe-Counter) を使用しています。GitHub の画像キャッシュの影響を受けるため、ユニークユーザー数ではありません。
+[Moe Counter](https://github.com/journey-ad/Moe-Counter) に基づく [Lolihouse](https://moecount.lolihouse.top/) のサービスを使用しています。GitHub の画像キャッシュの影響を受けるため、ユニークユーザー数ではありません。
 
 **Lar** · [turelar367@gmail.com](mailto:turelar367@gmail.com)
 

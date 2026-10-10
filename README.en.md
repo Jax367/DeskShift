@@ -127,10 +127,10 @@ Original geometric animations, with design references from [MetaLab](https://dri
 
 <div align="center">
 <a href="https://github.com/journey-ad/Moe-Counter">
-<img src="https://count.getloli.com/@jax367-deskshift?name=jax367-deskshift&amp;theme=miku&amp;padding=7&amp;offset=0&amp;align=center&amp;scale=0.8&amp;pixelated=1&amp;darkmode=auto" alt="DeskShift Moe Counter — Miku theme" />
+<img src="https://moecount.lolihouse.top/get/@jax367-deskshift?theme=moebooru" alt="DeskShift Moe Counter — Moebooru theme" />
 </a>
 
-Powered by [Moe Counter](https://github.com/journey-ad/Moe-Counter). GitHub image caching affects request counts; this is not a unique-visitor metric.
+Based on [Moe Counter](https://github.com/journey-ad/Moe-Counter), hosted by [Lolihouse](https://moecount.lolihouse.top/). GitHub image caching affects request counts; this is not a unique-visitor metric.
 
 **Lar** · [turelar367@gmail.com](mailto:turelar367@gmail.com)
 
