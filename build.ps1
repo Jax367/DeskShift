@@ -9,5 +9,6 @@ if ($LASTEXITCODE -ne 0) { throw '图标生成失败' }
 if ($LASTEXITCODE -ne 0) { throw '编译失败' }
 Copy-Item -Recurse -Force assets "$OutputDirectory\"
 Copy-Item -Recurse -Force browser "$OutputDirectory\"
-Copy-Item -Force README.md "$OutputDirectory\"
+Copy-Item -Force README*.md "$OutputDirectory\"
+Copy-Item -Recurse -Force docs "$OutputDirectory\"
 Write-Host "已生成 $OutputDirectory\DeskShift.exe"

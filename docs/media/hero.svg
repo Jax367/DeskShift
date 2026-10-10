@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="420" viewBox="0 0 1280 420" role="img" aria-labelledby="title desc">
+  <title id="title">DeskShift — One wallpaper. A whole new mood.</title>
+  <desc id="desc">Sage green and lavender banner with a desktop illustration and three color palettes.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#f4f7ee"/><stop offset="1" stop-color="#e4e5f1"/></linearGradient>
+    <linearGradient id="screen" x2="1" y2="1"><stop stop-color="#84bdb2"/><stop offset="1" stop-color="#abb0ce"/></linearGradient>
+  </defs>
+  <rect width="1280" height="420" rx="28" fill="url(#bg)"/>
+  <circle cx="1240" cy="30" r="210" fill="#c4c5de" opacity=".35"/>
+  <circle cx="720" cy="430" r="170" fill="#a7d1c2" opacity=".22"/>
+  <rect x="66" y="62" width="215" height="30" rx="15" fill="#dce8de"/>
+  <text x="84" y="82" font-family="Segoe UI,Arial,sans-serif" font-size="13" font-weight="600" letter-spacing="2" fill="#506b5b">WINDOWS DESKTOP STUDIO</text>
+  <text x="62" y="173" font-family="Segoe UI,Arial,sans-serif" font-size="76" font-weight="700" letter-spacing="-3" fill="#273b34">DeskShift<tspan fill="#83998b">.</tspan></text>
+  <text x="68" y="218" font-family="Segoe UI,Arial,sans-serif" font-size="24" fill="#576962">One wallpaper. A whole new mood.</text>
+  <text x="68" y="259" font-family="Segoe UI,Arial,sans-serif" font-size="15" fill="#6e7c77">WALLPAPER  /  COLOR PALETTE  /  DESKTOP MOTION</text>
+  <g transform="translate(68 305)">
+    <rect width="124" height="42" rx="21" fill="#506d5c"/><text x="62" y="27" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="14" fill="#fff">Made by Lar</text>
+    <text x="147" y="27" font-family="Segoe UI,Arial,sans-serif" font-size="14" fill="#64776c">Local colors. Original clarity.</text>
+  </g>
+  <g transform="translate(758 70)">
+    <rect x="6" y="10" width="388" height="249" rx="20" fill="#87938d" opacity=".15"/>
+    <rect width="388" height="249" rx="20" fill="#fff"/>
+    <rect x="12" y="12" width="364" height="207" rx="12" fill="url(#screen)"/>
+    <circle cx="283" cy="69" r="42" fill="#f4f0da" opacity=".8"/>
+    <path d="M12 170 Q87 102 172 166 T376 123 V219 H12Z" fill="#658d89"/>
+    <path d="M12 196 Q105 151 208 188 T376 167 V219 H12Z" fill="#475f67"/>
+    <rect x="176" y="249" width="36" height="25" fill="#b7c6ba"/><rect x="138" y="274" width="112" height="8" rx="4" fill="#718c7d"/>
+    <circle cx="194" cy="234" r="4" fill="#89ad9a"/>
+    <g transform="translate(42 294)">
+      <rect width="304" height="44" rx="22" fill="#fff" opacity=".9"/>
+      <circle cx="30" cy="22" r="12" fill="#84bdb2"/><circle cx="68" cy="22" r="12" fill="#f3ebd9"/><circle cx="106" cy="22" r="12" fill="#a6a0bc"/><circle cx="144" cy="22" r="12" fill="#575d7c"/><circle cx="182" cy="22" r="12" fill="#222231"/>
+      <path d="M220 22h49m-7-7 7 7-7 7" fill="none" stroke="#718b7c" stroke-width="2.5" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>
