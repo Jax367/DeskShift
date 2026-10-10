@@ -63,6 +63,10 @@ namespace DeskShift {
         public bool FullscreenTransition {get;set;}
         public string TransitionStyle {get;set;}
         public string Mode {get;set;}
+        public bool ShowFloatingOrb {get;set;}
+        public bool HasOrbPosition {get;set;}
+        public int OrbX {get;set;}
+        public int OrbY {get;set;}
         public Settings() { Wallpapers=new List<Wallpaper>();SystemTheme=true;FullscreenTransition=true;TransitionStyle="随机";Mode="自动"; }
     }
     public class Library {
@@ -107,10 +111,20 @@ namespace DeskShift {
             return p;
         }
         public string ExportChrome(Wallpaper w) {
-            var p=Effective(w);string dir=Path.Combine(Root,"chrome-themes",w.Id);Directory.CreateDirectory(dir);
+            return ExportBrowser(w,"chrome");
+        }
+        public string ExportBrowser(Wallpaper w,string browser,Palette palette=null) {
+            if(browser!="chrome" && browser!="edge")throw new ArgumentException("Unsupported browser");
+            var p=palette??Effective(w);string dir=Path.Combine(Root,"browser-themes",browser,"current");Directory.CreateDirectory(dir);
             Func<string,int[]> rgb=s=>{Color c=Palette.ColorOf(s);return new[]{(int)c.R,(int)c.G,(int)c.B};};
-            var colors=new Dictionary<string,object>{{"frame",rgb(p.Accent)},{"toolbar",rgb(p.Surface)},{"tab_text",rgb(p.Text)},{"tab_background_text",rgb(Palette.Contrast(Palette.ColorOf(p.Accent),Color.White)>4.5?"#FFFFFF":"#171A22")},{"bookmark_text",rgb(p.Text)},{"ntp_background",rgb(p.Background)},{"ntp_text",rgb(p.Text)},{"omnibox_background",rgb(p.Background)},{"omnibox_text",rgb(p.Text)}};
-            AtomicWrite(Path.Combine(dir,"manifest.json"),Json.Serialize(new{manifest_version=3,name="DeskShift · "+w.Name,version="1.0.0",theme=new{colors=colors}}));return dir;
+            string frameText=Palette.Contrast(Palette.ColorOf(p.Accent),Color.White)>4.5?"#FFFFFF":"#171A22";
+            string toolbar=Palette.Hex(Palette.Mix(Palette.ColorOf(p.Accent),Palette.ColorOf(p.Surface),.82));
+            var colors=new Dictionary<string,object>{{"frame",rgb(p.Accent)},{"frame_inactive",rgb(p.Accent)},{"toolbar",rgb(toolbar)},{"tab_text",rgb(p.Text)},{"tab_background_text",rgb(frameText)},{"tab_background_text_inactive",rgb(frameText)},{"background_tab",rgb(p.Accent)},{"background_tab_inactive",rgb(p.Accent)},{"bookmark_text",rgb(p.Text)},{"omnibox_background",rgb(p.Background)},{"omnibox_text",rgb(p.Text)}};
+            string manifest=Json.Serialize(new{manifest_version=3,name="DeskShift · "+(browser=="edge"?"Edge":"Chrome")+" 配色",version="1.0.0",description="仅浏览器界面配色；不替换首页、新标签页，不包含壁纸。",theme=new{colors=colors}});
+            string target=Path.Combine(dir,"manifest.json");
+            if(!File.Exists(target)||File.ReadAllText(target)!=manifest){AtomicWrite(target,manifest);string cache=Path.Combine(dir,"Cached Theme.pak");try{if(File.Exists(cache))File.Delete(cache);}catch(IOException){}catch(UnauthorizedAccessException){}}
+            string address=browser=="edge"?"edge://extensions":"chrome://extensions";
+            AtomicWrite(Path.Combine(dir,"HOW-TO.html"),"<!doctype html><html lang='zh-CN'><meta charset='utf-8'><title>DeskShift 标题栏配色</title><style>body{font:16px 'Segoe UI',sans-serif;background:#f3f6f4;color:#26382e;max-width:700px;margin:70px auto;padding:24px;line-height:1.8}article{background:white;border-radius:24px;padding:32px}code{display:block;background:#eef3ef;border-radius:10px;padding:12px;overflow-wrap:anywhere;user-select:all}.sample{background:"+p.Accent+";color:"+frameText+";padding:18px;border-radius:14px}</style><article><h1>应用当前标题栏配色</h1><p class='sample'>"+System.Net.WebUtility.HtmlEncode(w.Name)+" · "+p.Accent+"</p><p>新标签页扩展只控制页面；标题栏需要单独加载这个主题。导出文件后，浏览器不会自动重新读取。</p><ol><li>在浏览器地址栏打开：<code>"+address+"</code></li><li>打开「开发者模式」，点击「加载解压缩的扩展」（Chrome 为「加载已解压的扩展程序」）。</li><li>选择以下主题文件夹，<strong>不是新标签页扩展文件夹</strong>：<code>"+System.Net.WebUtility.HtmlEncode(dir)+"</code></li></ol><p>如已加载 DeskShift 配色主题，点击该主题的重新加载按钮；如果主题不显示在列表里，就再次加载上面的文件夹。切换壁纸后需重复此步骤。</p><p>此主题只改变标题栏、标签和工具栏配色，新标签页仍由 DeskShift 新标签页扩展显示。</p></article></html>");return dir;
         }
     }
 }

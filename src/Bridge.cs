@@ -8,13 +8,18 @@ using System.Threading;
 namespace DeskShift {
     public sealed class Bridge : IDisposable {
         TcpListener listener;volatile bool stopped;readonly object gate=new object();
-        string json;string image;
+        string json;string image;string revision;int publication;
         public const int Port=47831;
         public int ListeningPort {get;private set;}
-        public DateTime LastSeen {get;private set;}
+        DateTime seenChrome,seenEdge;
+        public DateTime LastSeenChrome {get{lock(gate)return seenChrome;}}
+        public DateTime LastSeenEdge {get{lock(gate)return seenEdge;}}
         public Bridge(int port=Port) { listener=new TcpListener(IPAddress.Loopback,port);listener.Start();ListeningPort=((IPEndPoint)listener.LocalEndpoint).Port;new Thread(Run){IsBackground=true}.Start(); }
-        public void Publish(Wallpaper w,Palette p) { lock(gate) { image=w.File;json=Library.Json.Serialize(new{revision=Guid.NewGuid().ToString("N"),name=w.Name,palette=p}); } }
-        public void Clear() { lock(gate) { image=null;json=null; } }
+        public void Publish(Wallpaper w,Palette p) {
+            int ticket;string next=Guid.NewGuid().ToString("N"),source=w.File,data=Library.Json.Serialize(new{revision=next,name=w.Name,palette=p});lock(gate)ticket=++publication;
+            ThreadPool.QueueUserWorkItem(_=>{string prepared;try{prepared=BrowserWallpaper.Prepare(source);}catch{prepared=source;}lock(gate){if(stopped||ticket!=publication)return;image=prepared;revision=next;json=data;}});
+        }
+        public void Clear() { lock(gate) { ++publication;image=null;json=null; } }
         void Run() { while(!stopped) { try { var client=listener.AcceptTcpClient();ThreadPool.QueueUserWorkItem(_=>Serve(client)); } catch { if(stopped) return; } } }
         void Serve(TcpClient client) {
             using(client) try {
@@ -26,10 +31,10 @@ namespace DeskShift {
                     string request=Encoding.ASCII.GetString(bytes.ToArray());string[] lines=request.Split(new[]{"\r\n"},StringSplitOptions.None);string[] first=lines[0].Split(' ');
                     string host="",origin="";foreach(string line in lines) { if(line.StartsWith("Host:",StringComparison.OrdinalIgnoreCase)) host=line.Substring(5).Trim();if(line.StartsWith("Origin:",StringComparison.OrdinalIgnoreCase)) origin=line.Substring(7).Trim(); }
                     if(first.Length!=3 || first[0]!="GET" || host!="127.0.0.1:"+ListeningPort || (origin!="" && !origin.StartsWith("chrome-extension://",StringComparison.Ordinal))) { Reply(stream,403,"text/plain",Encoding.UTF8.GetBytes("Forbidden"));return; }
-                    string data,path;lock(gate) { data=json;path=image; }
-                    string url=first[1].Split('?')[0];
-                    if(url=="/theme" && data!=null) { LastSeen=DateTime.UtcNow;Reply(stream,200,"application/json; charset=utf-8",Encoding.UTF8.GetBytes(data)); }
-                    else if(url=="/wallpaper" && path!=null && System.IO.File.Exists(path)) Reply(stream,200,Path.GetExtension(path).Equals(".png",StringComparison.OrdinalIgnoreCase)?"image/png":"image/jpeg",System.IO.File.ReadAllBytes(path));
+                    string data,path,currentRevision;lock(gate) { data=json;path=image;currentRevision=revision; }
+                    string[] route=first[1].Split(new[]{'?'},2);string url=route[0];
+                    if(url=="/theme" && data!=null) { lock(gate){if(route.Length==2 && Array.IndexOf(route[1].Split('&'),"browser=edge")>=0)seenEdge=DateTime.UtcNow;else seenChrome=DateTime.UtcNow;}Reply(stream,200,"application/json; charset=utf-8",Encoding.UTF8.GetBytes(data)); }
+                    else if(url=="/wallpaper" && path!=null && System.IO.File.Exists(path) && (route.Length==1 || Array.IndexOf(route[1].Split('&'),"revision="+currentRevision)>=0)) Reply(stream,200,Path.GetExtension(path).Equals(".png",StringComparison.OrdinalIgnoreCase)?"image/png":Path.GetExtension(path).Equals(".bmp",StringComparison.OrdinalIgnoreCase)?"image/bmp":"image/jpeg",System.IO.File.ReadAllBytes(path));
                     else Reply(stream,404,"text/plain",Encoding.UTF8.GetBytes("Not found"));
                 }
             } catch { /* A closed extension tab should never interrupt the desktop program. */ }

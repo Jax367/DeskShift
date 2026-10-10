@@ -7,6 +7,17 @@ dist-playful/
 dist-design/
 dist-prewarmed/
 dist-tray-menu/
+dist-boutique/
+dist-floating/
+dist-edge/
+dist-colors-only/
+dist-minimal/
+dist-shortcuts/
+dist-refined/
+dist-dark-browser/
+*.pak
 test-output/
 *.user
+*.pem
+*.crx
 DeskShift-portable.zip

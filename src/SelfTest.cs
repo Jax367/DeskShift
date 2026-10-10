@@ -24,12 +24,26 @@ namespace DeskShift {
                 string export=lib.ExportChrome(w);var manifest=Library.Json.DeserializeObject(System.IO.File.ReadAllText(Path.Combine(export,"manifest.json")));Check(manifest!=null,"Chrome theme export");
                 string theme=WindowsTheme.ThemeText(w.File,p);Check(theme.Contains(p.Accent.Substring(1)),"Windows accent output");
             }
+            foreach(var browser in new[]{"chrome","edge"}) {
+                string folder=lib.ExportBrowser(lib.State.Wallpapers[0],browser);var manifest=Library.Json.Deserialize<System.Collections.Generic.Dictionary<string,object>>(System.IO.File.ReadAllText(Path.Combine(folder,"manifest.json")));
+                foreach(var forbidden in new[]{"chrome_url_overrides","chrome_settings_overrides","homepage_url","permissions","host_permissions","content_scripts","background"})Check(!manifest.ContainsKey(forbidden),"Color-only theme preserves pages and has no runtime permissions: "+forbidden);
+                var theme=(System.Collections.Generic.Dictionary<string,object>)manifest["theme"];Check(!theme.ContainsKey("images"),"Browser theme does not include wallpapers");var colors=(System.Collections.Generic.Dictionary<string,object>)theme["colors"];Check(!colors.Keys.Any(key=>key.StartsWith("ntp_")),"Browser theme leaves new-tab colors unspecified");
+                Check(Library.Json.Serialize(colors["frame"])==Library.Json.Serialize(colors["frame_inactive"]),"Inactive title bar follows wallpaper accent");
+                File.WriteAllText(Path.Combine(folder,"Cached Theme.pak"),"old theme cache");
+                string reusedFolder=lib.ExportBrowser(lib.State.Wallpapers[1],browser);Check(reusedFolder==folder && System.IO.File.ReadAllText(Path.Combine(folder,"manifest.json")).Contains("131,190,178"),"Theme file updates in the same reloadable folder");
+                Check(!File.Exists(Path.Combine(folder,"Cached Theme.pak")),"Changed theme invalidates cached colors");
+                Check(File.ReadAllText(Path.Combine(folder,"HOW-TO.html")).Contains(browser+"://extensions"),"Theme guide points to the correct browser");
+            }
+            summary.AppendLine("Chrome and Edge: colors only; no page overrides, wallpaper images, scripts, homepage/search settings or permissions; stable export folders passed.");
             Check(!lib.State.Wallpapers[0].Palette.Dark && !lib.State.Wallpapers[1].Palette.Dark && lib.State.Wallpapers[2].Palette.Dark,"Automatic light/dark on reference images");
             var mint=Palette.ColorOf(lib.State.Wallpapers[1].Palette.Accent);Check(mint.G>mint.R && mint.B>mint.R,"Mint background selected");
             string gray=Path.Combine(root,"gray.png");using(var bmp=new Bitmap(10,10)){using(var g=Graphics.FromImage(bmp))g.Clear(Color.White);bmp.Save(gray);}
             Check(!String.IsNullOrEmpty(Palette.Extract(gray).Accent),"Monochrome fallback");
             var imported=lib.Import(gray,"测试壁纸");Check(System.IO.File.Exists(imported.File),"Imported image copied");
             var reload=new Library(lib.Root,assets);Check(reload.State.Wallpapers.Count==4,"Persistence");
+            Check(!reload.State.ShowFloatingOrb,"Floating orb is opt-in");lib.State.ShowFloatingOrb=true;lib.State.HasOrbPosition=true;lib.State.OrbX=-12;lib.State.OrbY=240;lib.Save();reload=new Library(lib.Root,assets);Check(reload.State.ShowFloatingOrb && reload.State.HasOrbPosition && reload.State.OrbX==-12 && reload.State.OrbY==240,"Floating orb settings and monitor position persist");
+            var bounded=OrbWindow.Clamp(new Point(-100000,-100000),new Size(60,60));var orbArea=Screen.FromRectangle(new Rectangle(bounded,new Size(60,60))).WorkingArea;Check(orbArea.Contains(new Rectangle(bounded,new Size(60,60))),"An unavailable monitor position is moved onto an existing display");
+            using(var preview=new Bitmap(94,54))using(var picker=new WallpaperPicker(lib,w=>preview,w=>{})){Check(picker.Controls.OfType<FlowLayoutPanel>().Single().Controls.Count==4,"Floating picker includes imported wallpapers");}
             var watch=Stopwatch.StartNew();var large=lib.State.Wallpapers[1];string cached=WindowsTheme.PrepareWallpaper(lib.Root,large);long cold=watch.ElapsedMilliseconds;
             using(var original=new Bitmap(large.File))using(var full=new Bitmap(cached)){Check(full.Size==original.Size,"Original dimensions preserved");foreach(var point in new[]{new Point(0,0),new Point(original.Width/2,original.Height/2),new Point(original.Width-1,original.Height-1)})Check(full.GetPixel(point.X,point.Y).ToArgb()==original.GetPixel(point.X,point.Y).ToArgb(),"Decoded pixels preserved");summary.AppendLine("Original wallpaper dimensions: "+full.Width+"x"+full.Height);}
             DateTime modified=System.IO.File.GetLastWriteTimeUtc(cached);watch.Restart();string reused=WindowsTheme.PrepareWallpaper(lib.Root,large);long warm=watch.ElapsedMilliseconds;
@@ -79,19 +93,24 @@ namespace DeskShift {
             }
             lib.State.Mode="深色";Check(lib.Effective(lib.State.Wallpapers[0]).Dark,"Mode override");
             using(var bridge=new Bridge(0)) {
-                int port=bridge.ListeningPort;
-                bridge.Publish(lib.State.Wallpapers[0],lib.Effective(lib.State.Wallpapers[0]));
-                using(var client=new WebClient()) {string json=client.DownloadString("http://127.0.0.1:"+port+"/theme");Check(json.Contains("palette"),"Bridge palette");Check(client.DownloadData("http://127.0.0.1:"+port+"/wallpaper").Length>0,"Bridge wallpaper");}
-                Check(Request(port,"GET /theme HTTP/1.1\r\nHost: attacker.invalid\r\n\r\n").Contains("403"),"DNS rebinding blocked");
-                Check(Request(port,"POST /theme HTTP/1.1\r\nHost: 127.0.0.1:"+port+"\r\n\r\n").Contains("403"),"Write endpoint blocked");
-                Check(Request(port,"GET /theme HTTP/1.1\r\nHost: 127.0.0.1:"+port+"\r\nOrigin: https://example.com\r\n\r\n").Contains("403"),"Website origin blocked");
-                bridge.Clear();Check(Request(port,"GET /theme HTTP/1.1\r\nHost: 127.0.0.1:"+port+"\r\n\r\n").Contains("404"),"Undo without active theme clears bridge");
+                int port=bridge.ListeningPort;var wallpaper=lib.State.Wallpapers[0];bridge.Publish(wallpaper,lib.Effective(wallpaper));
+                var preparation=Stopwatch.StartNew();while(preparation.ElapsedMilliseconds<15000 && !Request(port,"GET /theme?browser=edge HTTP/1.1\r\nHost: 127.0.0.1:"+port+"\r\n\r\n").Contains("200 OK"))Thread.Sleep(30);
+                using(var client=new WebClient()){var data=Library.Json.Deserialize<System.Collections.Generic.Dictionary<string,object>>(client.DownloadString("http://127.0.0.1:"+port+"/theme?browser=edge"));var bytes=client.DownloadData("http://127.0.0.1:"+port+"/wallpaper?revision="+data["revision"]);Check(bytes.SequenceEqual(System.IO.File.ReadAllBytes(BrowserWallpaper.Prepare(wallpaper.File))),"Browser receives its compressed derivative");}
+                Check(bridge.LastSeenEdge!=DateTime.MinValue && bridge.LastSeenChrome==DateTime.MinValue,"Browser connection indicators remain independent");
+                Check(Request(port,"GET /theme?browser=chrome HTTP/1.1\r\nHost: 127.0.0.1:"+port+"\r\nOrigin: chrome-extension://test\r\n\r\n").Contains("200 OK"),"Chrome extension receives the same palette");
+                Check(Request(port,"GET /theme HTTP/1.1\r\nHost: attacker.invalid\r\n\r\n").Contains("403"),"Unexpected host rejected");Check(Request(port,"POST /theme HTTP/1.1\r\nHost: 127.0.0.1:"+port+"\r\n\r\n").Contains("403"),"Write request rejected");Check(Request(port,"GET /theme HTTP/1.1\r\nHost: 127.0.0.1:"+port+"\r\nOrigin: https://example.com\r\n\r\n").Contains("403"),"Website origin rejected");Check(Request(port,"GET /wallpaper?revision=outdated HTTP/1.1\r\nHost: 127.0.0.1:"+port+"\r\n\r\n").Contains("404"),"Outdated wallpaper revision rejected");bridge.Clear();Check(Request(port,"GET /theme HTTP/1.1\r\nHost: 127.0.0.1:"+port+"\r\n\r\n").Contains("404"),"Undo without active wallpaper clears browser bridge");
+                summary.AppendLine("Browser bridge: compressed browser derivative, palette sync, per-browser status, revision gate and host/origin/method restrictions passed.");
+            }
+            foreach(var wallpaper in lib.State.Wallpapers.Take(3)) {
+                byte[] original=File.ReadAllBytes(wallpaper.File);string compressed=BrowserWallpaper.Prepare(wallpaper.File);
+                using(var image=Image.FromFile(compressed))using(var source=Image.FromFile(wallpaper.File)){Check(Math.Max(image.Width,image.Height)<=2560,"Browser background longest edge bounded");Check(image.Width<=source.Width && image.Height<=source.Height,"Browser backgrounds never upscale");Check(Math.Abs((double)image.Width/image.Height-(double)source.Width/source.Height)<.003,"Browser background preserves aspect ratio");summary.AppendLine(wallpaper.Name+": browser JPEG "+image.Width+"x"+image.Height+", "+new FileInfo(compressed).Length+" bytes / original "+original.Length+" bytes");}
+                Check(original.SequenceEqual(File.ReadAllBytes(wallpaper.File)),"Browser compression leaves desktop original unchanged");Check(BrowserWallpaper.Prepare(wallpaper.File)==compressed,"Browser derivative cache reused");
             }
             var snapshot=WindowsTheme.Capture(null);var roundtrip=Library.Json.Deserialize<Snapshot>(Library.Json.Serialize(snapshot));Check(roundtrip.Values.Count==snapshot.Values.Count && roundtrip.Wallpaper==snapshot.Wallpaper,"Windows backup serialization");
             string failure=Path.Combine(root,"failure.txt");if(System.IO.File.Exists(failure))System.IO.File.Delete(failure);
-            System.IO.File.WriteAllText(Path.Combine(root,"results.txt"),"PASS: extraction, contrast, mode, import, persistence, theme exports, bridge, host/origin/method restrictions.\r\n"+summary,Encoding.UTF8);
+            System.IO.File.WriteAllText(Path.Combine(root,"results.txt"),"PASS: extraction, contrast, mode, import, persistence, theme exports; color-only browser themes preserve pages.\r\n"+summary,Encoding.UTF8);
         }
-        static string Request(int port,string request) {using(var client=new TcpClient("127.0.0.1",port)){client.ReceiveTimeout=5000;var stream=client.GetStream();byte[] bytes=Encoding.ASCII.GetBytes(request);stream.Write(bytes,0,bytes.Length);using(var reader=new StreamReader(stream))return reader.ReadToEnd();}}
         static void Pump(System.Threading.Tasks.Task task,string label="Animation stage"){var time=Stopwatch.StartNew();while(!task.IsCompleted && time.ElapsedMilliseconds<3000){Application.DoEvents();Thread.Sleep(5);}Check(task.IsCompleted,label+" completes without hanging");task.GetAwaiter().GetResult();}
+        static string Request(int port,string request){using(var client=new TcpClient("127.0.0.1",port)){client.ReceiveTimeout=5000;var stream=client.GetStream();byte[] bytes=Encoding.ASCII.GetBytes(request);stream.Write(bytes,0,bytes.Length);using(var reader=new StreamReader(stream))return reader.ReadToEnd();}}
     }
 }

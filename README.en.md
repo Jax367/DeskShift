@@ -16,13 +16,19 @@
 
 </div>
 
-DeskShift brings wallpaper colors to your Windows desktop. Extract a palette from an image, then update the wallpaper, Windows colors and Chrome's new tab with one click.
+DeskShift brings wallpaper colors to your Windows desktop. Extract a palette from an image, then update the wallpaper and Windows colors with one click. Export color-only themes for Chrome and Edge.
 
-> **Original clarity**: desktop wallpapers are cached losslessly at their original resolution. Chrome's new tab follows colors only. Full browser themes are exported and loaded manually.
+> **Minimal new tab**: original wallpaper + search + most-visited sites. No clock, date or news. Chrome / Edge sync the new tab automatically; tab-strip themes still load manually.
+
+Website shortcuts use the browser’s original cached favicons and sit directly below the search box. Browser title-bar themes must be loaded separately through the theme guide; new-tab syncing does not automatically update an installed theme.
 
 ## Preview
 
 ![DeskShift desktop app — current UI is Simplified Chinese](docs/media/app-preview.png)
+
+A compact default window (about 940 × 660) separates wallpapers, switching settings and browser integration through a sidebar. Grouped settings use rounded cards and switches; smaller screens get a constrained window with scrolling.
+
+![DeskShift switching settings](docs/media/settings-preview.png)
 
 ## Features
 
@@ -30,10 +36,11 @@ DeskShift brings wallpaper colors to your Windows desktop. Extract a palette fro
 | :--- | :--- |
 | 🎨 Automatic palettes | Import JPG, PNG or BMP; extract five colors and a light/dark scheme; adjust the accent manually |
 | 🖥️ Desktop sync | Apply the wallpaper, Windows accent and light/dark mode |
-| 🌐 Chrome colors | Sync new-tab colors locally; export a complete static Chrome theme |
+| 🌐 Minimal new tab | Original wallpaper, local colors, search and up to eight real most-visited sites |
 | ✨ Fullscreen motion | Five cover/reveal effects and six geometric waiting designs, with nonrepeating random selection |
 | ⚡ Warm startup | Prewarm hidden windows, start the clock after first paint, reuse windows and cache artwork |
 | 🧭 Tray switching | Right-click → select a wallpaper; the active wallpaper is checked |
+| 🫧 Floating orb | Optional draggable desktop shortcut with a thumbnail picker; remembers its position |
 | ↩️ One-step undo | Persist the previous wallpaper and registry values changed by the app across restarts |
 | 🏠 Local processing | Extract palettes and process images on your computer |
 
@@ -67,15 +74,20 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 
 This repository contains source code. The build script generates the executable. The app UI is currently **Simplified Chinese**; these READMEs are available in three languages.
 
-### Chrome extension
+Enable the floating orb in the switching settings under desktop shortcuts. Click it to pick a wallpaper, drag to reposition it, and click outside the picker or press Esc to dismiss. Its right-click menu opens the app or hides the orb. It is off by default; visibility and position are saved.
 
-Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select `dist/browser/chrome` after building. Keep DeskShift running and apply a wallpaper at least once. The extension replaces your existing new-tab page.
+### Minimal new tab
 
-| Scope | How it works |
-| :--- | :--- |
-| Wallpaper and Windows colors | One-click application |
-| Chrome new-tab colors | Automatic polling every 2.5 seconds after extension installation |
-| Complete Chrome tab/toolbar theme | Manual export and installation; no automatic switching |
+Shortcuts can be selected automatically from the browser's most-visited sites or added manually with **Add website**. Manual links appear first, with automatic suggestions filling the remaining slots. Hover a tile and choose **⋯** to edit, delete or hide it. Turn off automatic suggestions in the dialog for a manual-only list. Hidden suggestions can be restored. Preferences are stored locally in the current browser and survive restarts.
+
+
+Load `browser/chrome` or `browser/edge` through Developer mode at `chrome://extensions` or `edge://extensions`. Keep the updated DeskShift running and apply a wallpaper. This replaces the new-tab page; startup URLs, home-button URLs and the browser's default search setting are unchanged.
+
+The page shows only wallpaper, search and up to eight most-visited sites from `topSites`, with host deduplication. It does not request full `history` access or send site lists anywhere. Chrome searches Google; Edge searches Bing. Browser-ranked sites can differ from Edge's pinned shortcuts. An empty history shows a short hint.
+
+Desktop originals are preserved; browser backgrounds use separate JPEG copies (up to 2560 pixels on the longest edge, quality 82) and only the latest image is cached for offline use. Hidden tabs stop polling. Exported tab-strip themes still require manual loading. Optional checks: `node tests/browser-sync.js`; isolated visual preview: `node tests/newtab-preview.js`.
+
+![Minimal new tab; sample sites for preview](docs/media/newtab-preview.png)
 
 ## Tech stack
 
@@ -85,15 +97,16 @@ Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**,
 | Graphics | System.Drawing · GDI+ | Sampling, RGB color buckets, shaped overlays and geometry |
 | Windows | Win32 P/Invoke · Registry · `.theme` files | Full-resolution wallpaper, accent, light/dark mode and undo |
 | Animation resources | Background tasks · First-paint barrier · Window pool · LRU cache | Preparation, reuse and shared waiting frames across displays |
-| Browser | JavaScript · HTML · CSS · Chrome Manifest V3 | New-tab color sync and transitions |
-| Local bridge | C# HTTP bridge · JSON | Read-only endpoints on `127.0.0.1:47831` |
+| Browser extension | JavaScript · HTML · CSS · Manifest V3 · topSites | Minimal new tab, most-visited sites and wallpaper cache |
+| Local bridge | C# · TCP / HTTP · JSON | Read-only wallpaper and palette API with host/origin/revision checks |
 | Build & validation | PowerShell · Framework C# compiler · Built-in self-tests | Build without package dependencies; hidden-window checks |
 
 ### Layout
 
 ```text
-src/                    Desktop app, Windows integration, animation and bridge
-browser/chrome/         Chrome new-tab extension
+src/                    Desktop app, Windows integration, animation and themes
+browser/chrome/         Chrome minimal new-tab extension and guide
+browser/edge/           Edge minimal new-tab extension and guide
 assets/                 App icon and three original wallpapers
 tests/                  Animation profiling
 tools/                  Icon generation
@@ -114,7 +127,7 @@ Self-tests and smoke previews do not change the real desktop. Outputs are saved 
 - Windows light mode does not support Start/taskbar accent colors; some apps need reopening to refresh.
 - Prewarming reduces initialization costs. `DwmFlush` only synchronizes this app, not every application on the desktop.
 - Data lives in `%LOCALAPPDATA%\DeskShift`. The app does not register itself to launch at startup.
-- The local bridge checks Host and Origin and exposes read-only endpoints. The extension requests only its own storage and local connection access.
+- The extension requests only storage, top sites and local connection access. The app does not edit browser profiles. Node is not required to build or run it.
 - [Detailed Chinese guide](docs/GUIDE.zh-CN.md).
 
 ## References and credits
@@ -135,3 +148,5 @@ Based on [Moe Counter](https://github.com/journey-ad/Moe-Counter), hosted by [Lo
 **Lar** · [turelar367@gmail.com](mailto:turelar367@gmail.com)
 
 </div>
+
+Version backups and downloads: [stable and experimental builds](docs/BACKUP-VERSIONS.md).

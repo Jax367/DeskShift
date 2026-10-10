@@ -8,7 +8,13 @@ if ($LASTEXITCODE -ne 0) { throw '图标生成失败' }
 & $compiler /nologo /target:winexe /optimize+ /platform:anycpu /win32icon:assets\DeskShift.ico "/out:$OutputDirectory\DeskShift.exe" /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.Web.Extensions.dll src\*.cs
 if ($LASTEXITCODE -ne 0) { throw '编译失败' }
 Copy-Item -Recurse -Force assets "$OutputDirectory\"
-Copy-Item -Recurse -Force browser "$OutputDirectory\"
+foreach ($browserName in @('chrome','edge')) {
+    $browserDestination = Join-Path $OutputDirectory "browser\$browserName"
+    New-Item -ItemType Directory -Force $browserDestination | Out-Null
+    foreach ($browserFile in @('manifest.json','INSTALL.html','newtab.html','newtab.css','newtab.js')) {
+        Copy-Item -Force "browser\$browserName\$browserFile" $browserDestination
+    }
+}
 Copy-Item -Force README*.md "$OutputDirectory\"
 Copy-Item -Recurse -Force docs "$OutputDirectory\"
 Write-Host "已生成 $OutputDirectory\DeskShift.exe"
