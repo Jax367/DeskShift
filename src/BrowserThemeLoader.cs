@@ -14,7 +14,8 @@ namespace DeskShift {
     internal sealed class BrowserThemeLoader {
         readonly CancellationToken cancellation;readonly Func<bool> covered;readonly Stopwatch clock=Stopwatch.StartNew();
         IntPtr window,dialog,previous;uint inputStamp;bool started,ownTab;string scheme,profile,folder;
-        internal BrowserThemeLoader(CancellationToken token,Func<bool> isCovered){cancellation=token;covered=isCovered;}
+        readonly int limit;internal bool StopBatch {get;private set;}
+        internal BrowserThemeLoader(CancellationToken token,Func<bool> isCovered,int timeout=6500){cancellation=token;covered=isCovered;limit=timeout;}
         internal static string Snapshot(string exported,string root) {
             string manifest=File.ReadAllText(Path.Combine(exported,"manifest.json"));ValidateManifest(manifest);
             string hash;using(var sha=SHA256.Create())hash=BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(manifest))).Replace("-","");
@@ -53,20 +54,21 @@ namespace DeskShift {
                 Wait(()=>ThemeMatches(),"主题加载未得到确认。");dialog=IntPtr.Zero;
                 Check(true);if(Address()!=scheme+"://extensions")throw new InvalidOperationException("页面变化，停止自动操作。");Chord(0x57);ownTab=false;
                 if(previous!=IntPtr.Zero&&IsWindow(previous))SetForegroundWindow(previous);
-                return "标题栏主题已自动加载";
+                return "主题已登记并返回原页面（标题栏实际显示需确认）";
             } catch(Exception ex) {
+                StopBatch=ex is OperationCanceledException||ownTab||dialog!=IntPtr.Zero||(started&&LastInput()!=inputStamp);
                 // Cleanup only while guards still pass. Never inject keys after cancellation/user input.
                 try{Check(true);if(dialog!=IntPtr.Zero&&GetForegroundWindow()==dialog){Key(0x1B);dialog=IntPtr.Zero;}if(ownTab&&GetForegroundWindow()==window&&(Address()==scheme+"://extensions"||Address()==scheme+"://version")){Chord(0x57);ownTab=false;}if(previous!=IntPtr.Zero&&IsWindow(previous))SetForegroundWindow(previous);}catch{}
                 return "自动加载停止："+(ex is OperationCanceledException?"操作取消或超时":ex.Message);
             }
         }
         void Check(bool requireFocus) {
-            cancellation.ThrowIfCancellationRequested();if(clock.ElapsedMilliseconds>6500||!covered())throw new OperationCanceledException();
+            cancellation.ThrowIfCancellationRequested();if(clock.ElapsedMilliseconds>limit||!covered())throw new OperationCanceledException();
             if(started&&LastInput()!=inputStamp)throw new InvalidOperationException("检测到用户操作，已停止。");
             if(!IsWindow(window))throw new InvalidOperationException("浏览器窗口已关闭。");
             if(requireFocus){var current=GetForegroundWindow();if(current!=window&&(dialog==IntPtr.Zero||current!=dialog))throw new InvalidOperationException("浏览器焦点发生变化。");}
         }
-        void Wait(Func<bool> condition,string message){while(true){Check(false);if(condition())return;if(clock.ElapsedMilliseconds>6000)throw new InvalidOperationException(message);Thread.Sleep(80);}}
+        void Wait(Func<bool> condition,string message){while(true){Check(false);if(condition())return;if(clock.ElapsedMilliseconds>limit-500)throw new InvalidOperationException(message);Thread.Sleep(80);}}
         void Navigate(string address){Check(true);Chord(0x4C);var focused=AutomationElement.FocusedElement;if(focused==null||focused.Current.ControlType!=ControlType.Edit)throw new InvalidOperationException("地址栏未获得焦点。");Check(true);object pattern;if(!focused.TryGetCurrentPattern(ValuePattern.Pattern,out pattern))throw new InvalidOperationException("地址栏不支持安全写入。");((ValuePattern)pattern).SetValue(address);Check(true);Key(0x0D);Wait(()=>Address()==address,"未确认浏览器内部页面。");}
         string Address(){var edits=AutomationElement.FromHandle(window).FindAll(TreeScope.Descendants,new PropertyCondition(AutomationElement.ControlTypeProperty,ControlType.Edit));foreach(AutomationElement element in edits){object value;if(element.TryGetCurrentPattern(ValuePattern.Pattern,out value)){string address=((ValuePattern)value).Current.Value.TrimEnd('/');if(address==scheme+"://version"||address==scheme+"://extensions")return address;}}return "";}
         bool FindProfile(){var all=AutomationElement.FromHandle(window).FindAll(TreeScope.Descendants,Condition.TrueCondition);foreach(AutomationElement element in all){if(String.Equals(element.Current.Name,profile,StringComparison.OrdinalIgnoreCase))return true;object p;if(element.TryGetCurrentPattern(ValuePattern.Pattern,out p)&&String.Equals(((ValuePattern)p).Current.Value,profile,StringComparison.OrdinalIgnoreCase))return true;}return false;}
@@ -80,17 +82,19 @@ namespace DeskShift {
         void Chord(ushort key){Send(new[]{Stroke(0x11,false,false),Stroke(key,false,false),Stroke(key,true,false),Stroke(0x11,true,false)});}
         void Key(ushort key){Send(new[]{Stroke(key,false,false),Stroke(key,true,false)});}
         void Send(INPUT[] events){Check(true);if(SendInput((uint)events.Length,events,Marshal.SizeOf(typeof(INPUT)))!=events.Length)throw new InvalidOperationException("按键发送失败。");Thread.Sleep(30);inputStamp=LastInput();}
-        internal static void Test() {
-            string root=Path.Combine(Directory.GetCurrentDirectory(),"test-output","auto-theme-"+DateTime.UtcNow.Ticks),profile=Path.Combine(root,"profile","Default"),theme=Path.Combine(root,"theme");Directory.CreateDirectory(profile);Directory.CreateDirectory(theme);
+        internal static void Test(string browser="edge") {
+            if(browser!="chrome")browser="edge";
+            string root=Path.Combine(Directory.GetCurrentDirectory(),"test-output","auto-theme-"+browser+"-"+DateTime.UtcNow.Ticks),profile=Path.Combine(root,"profile","Default"),theme=Path.Combine(root,"theme");Directory.CreateDirectory(profile);Directory.CreateDirectory(theme);
             File.WriteAllText(Path.Combine(profile,"Preferences"),"{\"extensions\":{\"ui\":{\"developer_mode\":true}}}");
             File.WriteAllText(Path.Combine(theme,"manifest.json"),"{\"manifest_version\":3,\"name\":\"DeskShift isolated color test\",\"version\":\"1.0\",\"theme\":{\"colors\":{\"frame\":[131,190,178],\"toolbar\":[235,246,242]}}}");
-            string executable=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),"Microsoft","Edge","Application","msedge.exe");
-            var process=Process.Start(new ProcessStartInfo(executable,"--no-first-run --no-default-browser-check --user-data-dir=\""+Path.GetDirectoryName(profile)+"\" --new-window edge://extensions"){UseShellExecute=false});
+            string relative=browser=="edge"?"Microsoft\\Edge\\Application\\msedge.exe":"Google\\Chrome\\Application\\chrome.exe";
+            string executable=new[]{Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)}.Select(path=>Path.Combine(path,relative)).First(File.Exists);
+            var process=Process.Start(new ProcessStartInfo(executable,"--no-first-run --no-default-browser-check --user-data-dir=\""+Path.GetDirectoryName(profile)+"\" --new-window "+browser+"://extensions"){UseShellExecute=false});
             string result="";try{IntPtr handle=IntPtr.Zero;for(int i=0;i<80&&handle==IntPtr.Zero;i++){Thread.Sleep(100);process.Refresh();handle=process.MainWindowHandle;}if(handle==IntPtr.Zero)throw new Exception("独立测试浏览器没有出现窗口。");Thread.Sleep(800);
                 SetForegroundWindow(handle);
                 using(var mask=new DesktopTransition(new Palette{Accent="#83BEB2",Background="#F7FBFA",Text="#222734"},"对开幕帘")) {
                     var task=mask.CoverAsync();while(!task.IsCompleted){System.Windows.Forms.Application.DoEvents();Thread.Sleep(5);}task.GetAwaiter().GetResult();
-                    var runner=System.Threading.Tasks.Task.Run(()=>new BrowserThemeLoader(CancellationToken.None,()=>mask.Covered).Run("edge",theme,profile,handle));
+                    var runner=System.Threading.Tasks.Task.Run(()=>new BrowserThemeLoader(CancellationToken.None,()=>mask.Covered).Run(browser,theme,profile,handle));
                     var time=Stopwatch.StartNew();while(!runner.IsCompleted&&time.ElapsedMilliseconds<7500){System.Windows.Forms.Application.DoEvents();Thread.Sleep(5);}result=runner.IsCompleted?runner.Result:"测试超时";
                     task=mask.RevealAsync();while(!task.IsCompleted){System.Windows.Forms.Application.DoEvents();Thread.Sleep(5);}
                 }

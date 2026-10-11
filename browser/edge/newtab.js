@@ -8,6 +8,7 @@ function applyPalette(data) {
   if (!p || ![p.Accent,p.Background,p.Text].every(value => /^#[0-9a-f]{6}$/i.test(value))) throw Error('Invalid palette');
   for (const key of ['Accent','Background','Text']) document.documentElement.style.setProperty('--'+key.toLowerCase(),p[key]);
   document.documentElement.dataset.mode=p.Dark===true?'dark':'light';
+  document.documentElement.dataset.background=['original','acrylic','blocks'].includes(data.backgroundStyle)?data.backgroundStyle:'acrylic';
 }
 async function displayWallpaper(blob) {
   if (!blob || !blob.size || !blob.type.startsWith('image/')) return;

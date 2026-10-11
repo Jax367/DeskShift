@@ -15,9 +15,10 @@ namespace DeskShift {
         public DateTime LastSeenChrome {get{lock(gate)return seenChrome;}}
         public DateTime LastSeenEdge {get{lock(gate)return seenEdge;}}
         public Bridge(int port=Port) { listener=new TcpListener(IPAddress.Loopback,port);listener.Start();ListeningPort=((IPEndPoint)listener.LocalEndpoint).Port;new Thread(Run){IsBackground=true}.Start(); }
-        public void Publish(Wallpaper w,Palette p) {
-            int ticket;string next=Guid.NewGuid().ToString("N"),source=w.File,data=Library.Json.Serialize(new{revision=next,name=w.Name,palette=p});lock(gate)ticket=++publication;
-            ThreadPool.QueueUserWorkItem(_=>{string prepared;try{prepared=BrowserWallpaper.Prepare(source);}catch{prepared=source;}lock(gate){if(stopped||ticket!=publication)return;image=prepared;revision=next;json=data;}});
+        public void Publish(Wallpaper w,Palette p,string style="acrylic") {
+            string backgroundStyle=BrowserWallpaper.Normalize(style);
+            int ticket;string next=Guid.NewGuid().ToString("N"),source=w.File,data=Library.Json.Serialize(new{revision=next,name=w.Name,palette=p,backgroundStyle=backgroundStyle});lock(gate)ticket=++publication;
+            ThreadPool.QueueUserWorkItem(_=>{string prepared;try{prepared=BrowserWallpaper.Prepare(source,backgroundStyle,p);}catch{return;}lock(gate){if(stopped||ticket!=publication)return;image=prepared;revision=next;json=data;}});
         }
         public void Clear() { lock(gate) { ++publication;image=null;json=null; } }
         void Run() { while(!stopped) { try { var client=listener.AcceptTcpClient();ThreadPool.QueueUserWorkItem(_=>Serve(client)); } catch { if(stopped) return; } } }

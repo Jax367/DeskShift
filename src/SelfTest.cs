@@ -15,12 +15,25 @@ namespace DeskShift {
         public static void Run() {
             string root=Path.Combine(Directory.GetCurrentDirectory(),"test-output");Directory.CreateDirectory(root);
             Check(!new Settings().AutoBrowserTheme,"Experimental automatic theme loading is off by default");
+            using(var blurSample=new Bitmap(35,35,System.Drawing.Imaging.PixelFormat.Format24bppRgb)){using(var g=Graphics.FromImage(blurSample)){g.Clear(Color.Black);g.FillRectangle(Brushes.White,17,0,18,35);}BrowserWallpaper.Blur(blurSample,7);Check(blurSample.GetPixel(17,17).R>60&&blurSample.GetPixel(17,17).R<220,"Acrylic blur softens a sharp edge");Check(blurSample.GetPixel(0,17).R<blurSample.GetPixel(34,17).R,"Acrylic blur retains broad color composition");}
+            var legacyChrome=Library.Json.Deserialize<Settings>("{\"AutoThemeBrowser\":\"chrome\"}");Check(legacyChrome.ThemeTargets().SequenceEqual(new[]{"chrome"}),"Old Chrome selection is preserved");
+            Check(new Settings().ThemeTargets().SequenceEqual(new[]{"edge"}),"Legacy default target remains Edge");
+            var both=new Settings{AutoThemeEdge=true,AutoThemeChrome=true};Check(Library.Json.Deserialize<Settings>(Library.Json.Serialize(both)).ThemeTargets().SequenceEqual(new[]{"edge","chrome"}),"Both browser choices persist in order");
+            Check(new Settings{AutoThemeEdge=false,AutoThemeChrome=false,AutoThemeBrowser="chrome"}.ThemeTargets().Length==0,"Explicitly disabled targets do not revert to old selection");
             bool rejected=false;try{BrowserThemeLoader.ValidateManifest("{\"manifest_version\":3,\"name\":\"bad\",\"version\":\"1.0\",\"permissions\":[\"history\"],\"theme\":{\"colors\":{\"frame\":[1,2,3]}}}");}catch(InvalidOperationException){rejected=true;}Check(rejected,"Theme loader rejects runtime permissions");
             rejected=false;try{BrowserThemeLoader.ValidateManifest("{\"theme\":{\"colors\":{\"frame\":[999,2,3]}}}");}catch(InvalidOperationException){rejected=true;}Check(rejected,"Theme loader rejects invalid RGB");
             Check(new BrowserThemeLoader(CancellationToken.None,()=>false).Run("edge","unused").StartsWith("跳过"),"Missing cover prevents all browser input");
             string assets=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"assets","wallpapers");
             var lib=new Library(Path.Combine(root,"data-"+Guid.NewGuid().ToString("N")),assets);
             Check(lib.State.Wallpapers.Count==3,"Initial wallpaper count");
+            Check(BrowserWallpaper.Normalize(null)=="acrylic","Existing installations retain acrylic background");
+            var persistedStyle=Library.Json.Deserialize<Settings>(Library.Json.Serialize(new Settings{BrowserBackgroundStyle="blocks"}));Check(persistedStyle.BrowserBackgroundStyle=="blocks","Background style persists");
+            foreach(string style in BrowserWallpaper.StyleIds) {
+                foreach(int index in new[]{0,2}){var wallpaper=lib.State.Wallpapers[index];File.Copy(BrowserWallpaper.Prepare(wallpaper.File,style,lib.Effective(wallpaper)),Path.Combine(root,"preview-browser-"+style+"-"+(index==2?"dark":"light")+".jpg"),true);}
+            }
+            var sample=lib.State.Wallpapers[0];Check(BrowserWallpaper.StyleIds.Select(style=>BrowserWallpaper.Prepare(sample.File,style,lib.Effective(sample))).Distinct().Count()==3,"Background styles use separate cache entries");
+            string blockRedPath=Path.Combine(root,"block-red.png"),blockBluePath=Path.Combine(root,"block-blue.png");using(var image=new Bitmap(120,80)){using(var graphics=Graphics.FromImage(image))graphics.Clear(Color.Red);image.Save(blockRedPath);using(var graphics=Graphics.FromImage(image))graphics.Clear(Color.Blue);image.Save(blockBluePath);}
+            Check(File.ReadAllBytes(BrowserWallpaper.Prepare(blockRedPath,"blocks",sample.Palette)).SequenceEqual(File.ReadAllBytes(BrowserWallpaper.Prepare(blockBluePath,"blocks",sample.Palette))),"Abstract blocks depend on palette, not source subjects or pixels");
             var summary=new StringBuilder();
             foreach(var w in lib.State.Wallpapers) {
                 var p=w.Palette;Check(p.Swatches.Length>=3,"Palette diversity");Check(Palette.Contrast(Palette.ColorOf(p.Background),Palette.ColorOf(p.Text))>=4.5,"Readable text");
@@ -104,6 +117,8 @@ namespace DeskShift {
                 Check(Request(port,"GET /theme?browser=chrome HTTP/1.1\r\nHost: 127.0.0.1:"+port+"\r\nOrigin: chrome-extension://test\r\n\r\n").Contains("200 OK"),"Chrome extension receives the same palette");
                 Check(Request(port,"GET /theme HTTP/1.1\r\nHost: attacker.invalid\r\n\r\n").Contains("403"),"Unexpected host rejected");Check(Request(port,"POST /theme HTTP/1.1\r\nHost: 127.0.0.1:"+port+"\r\n\r\n").Contains("403"),"Write request rejected");Check(Request(port,"GET /theme HTTP/1.1\r\nHost: 127.0.0.1:"+port+"\r\nOrigin: https://example.com\r\n\r\n").Contains("403"),"Website origin rejected");Check(Request(port,"GET /wallpaper?revision=outdated HTTP/1.1\r\nHost: 127.0.0.1:"+port+"\r\n\r\n").Contains("404"),"Outdated wallpaper revision rejected");bridge.Clear();Check(Request(port,"GET /theme HTTP/1.1\r\nHost: 127.0.0.1:"+port+"\r\n\r\n").Contains("404"),"Undo without active wallpaper clears browser bridge");
                 summary.AppendLine("Browser bridge: compressed browser derivative, palette sync, per-browser status, revision gate and host/origin/method restrictions passed.");
+                bridge.Publish(wallpaper,lib.Effective(wallpaper),"blocks");var styleWait=Stopwatch.StartNew();while(styleWait.ElapsedMilliseconds<15000&&!Request(port,"GET /theme?browser=edge HTTP/1.1\r\nHost: 127.0.0.1:"+port+"\r\n\r\n").Contains("\"backgroundStyle\":\"blocks\""))Thread.Sleep(30);
+                Check(Request(port,"GET /theme?browser=edge HTTP/1.1\r\nHost: 127.0.0.1:"+port+"\r\n\r\n").Contains("\"backgroundStyle\":\"blocks\""),"Same wallpaper can publish a new browser style");bridge.Clear();
             }
             foreach(var wallpaper in lib.State.Wallpapers.Take(3)) {
                 byte[] original=File.ReadAllBytes(wallpaper.File);string compressed=BrowserWallpaper.Prepare(wallpaper.File);

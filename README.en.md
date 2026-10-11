@@ -85,7 +85,7 @@ Load `browser/chrome` or `browser/edge` through Developer mode at `chrome://exte
 
 The page shows only wallpaper, search and up to eight most-visited sites from `topSites`, with host deduplication. It does not request full `history` access or send site lists anywhere. Chrome searches Google; Edge searches Bing. Browser-ranked sites can differ from Edge's pinned shortcuts. An empty history shows a short hint.
 
-Desktop originals are preserved; browser backgrounds use separate JPEG copies (up to 2560 pixels on the longest edge, quality 82) and only the latest image is cached for offline use. Hidden tabs stop polling. Exported tab-strip themes still require manual loading. Optional checks: `node tests/browser-sync.js`; isolated visual preview: `node tests/newtab-preview.js`.
+Choose Compressed original, Acrylic blur, or Abstract color blocks under Switch settings → Browser background. The original option keeps the image composition; acrylic softens its details; abstract blocks draw large shapes using only the wallpaper palette, without retaining subjects or outlines. Changing the style updates browser backgrounds without applying the system theme again. Desktop originals are preserved; browser backgrounds use independent JPEG copies (up to 2560 pixels on the longest edge, quality 82), and only the latest image is cached for offline use. Hidden tabs stop polling. Exported tab-strip themes still require manual loading. Optional checks: `node tests/browser-sync.js`; isolated visual preview: `node tests/newtab-preview.js`.
 
 ![Minimal new tab; sample sites for preview](docs/media/newtab-preview.png)
 

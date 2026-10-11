@@ -62,7 +62,7 @@ namespace DeskShift {
     }
     public class MainForm : Form {
         Library library;Bridge bridge;Wallpaper selected;FlowLayoutPanel cards;Preview preview;Label title,subtitle,paletteLabel,status,connection;Button apply;CheckBox system,fullscreen;ComboBox mode;NotifyIcon tray;bool quitting;bool busy;DesktopTransition transition;Task startupWarmup=Task.FromResult(true);
-        Button[] navigation;CheckBox floating;FloatingLauncher launcher;readonly bool smokeMode;Label edgeConnection;
+        Button[] navigation;CheckBox floating;FloatingLauncher launcher;readonly bool smokeMode;Label edgeConnection,autoThemeReport;
         static Color Ink=Color.FromArgb(36,43,39),Muted=Color.FromArgb(114,122,117),Green=Color.FromArgb(81,108,92);
         public MainForm(Library data,bool smoke) {
             library=data;smokeMode=smoke;Text="DeskShift";Icon=System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath);Font=new Font("Microsoft YaHei UI",9);BackColor=Color.FromArgb(247,248,250);ForeColor=Ink;AutoScaleMode=AutoScaleMode.Dpi;AutoScaleDimensions=new SizeF(96,96);StartPosition=FormStartPosition.CenterScreen;
@@ -113,8 +113,16 @@ namespace DeskShift {
             var browserPage=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoScroll=true,FlowDirection=FlowDirection.TopDown,WrapContents=false,Visible=false,Margin=new Padding(0)};pages.Controls.Add(browserPage);
             connection=Label("新标签页壁纸与配色 · 常用网址\n等待扩展连接",9,FontStyle.Regular,new Point(18,52),new Size(590,42));edgeConnection=Label("新标签页壁纸与配色 · 常用网址\n等待扩展连接",9,FontStyle.Regular,new Point(18,52),new Size(590,42));browserPage.Controls.Add(BrowserCard("Google Chrome",connection,"chrome"));browserPage.Controls.Add(BrowserCard("Microsoft Edge",edgeConnection,"edge"));
             var automaticTheme=new Toggle{Checked=library.State.AutoBrowserTheme,AccessibleName="自动加载标题栏主题（试验）"};automaticTheme.CheckedChanged+=(s,e)=>{library.State.AutoBrowserTheme=automaticTheme.Checked;library.Save();};
-            var targetBrowser=Interface.Picker(148);targetBrowser.Items.AddRange(new object[]{"Microsoft Edge","Google Chrome"});targetBrowser.SelectedIndex=library.State.AutoThemeBrowser=="chrome"?1:0;targetBrowser.SelectedIndexChanged+=(s,e)=>{library.State.AutoThemeBrowser=targetBrowser.SelectedIndex==1?"chrome":"edge";library.Save();};
-            browserPage.Controls.Add(SettingsGroup("标题栏自动加载 · 试验",new[]{SettingRow("自动加载主题","需全屏过渡、单窗口及默认配置；会暂时占用焦点。",automaticTheme),SettingRow("目标浏览器","需事先打开扩展页的开发者模式。",targetBrowser)}));
+            var backgroundStyle=Interface.Picker(148);backgroundStyle.Items.AddRange(BrowserWallpaper.Styles);backgroundStyle.SelectedIndex=Array.IndexOf(BrowserWallpaper.StyleIds,BrowserWallpaper.Normalize(library.State.BrowserBackgroundStyle));
+            backgroundStyle.SelectedIndexChanged+=(s,e)=>{library.State.BrowserBackgroundStyle=BrowserWallpaper.StyleIds[backgroundStyle.SelectedIndex];library.Save();var active=library.State.Wallpapers.FirstOrDefault(w=>w.Id==library.State.ActiveId);if(active!=null&&bridge!=null){bridge.Publish(active,library.State.ActivePalette??library.Effective(active),library.State.BrowserBackgroundStyle);Status("正在生成浏览器背景 · "+backgroundStyle.Text);}else Status("背景样式已保存，应用壁纸后生效。");};
+            var backgroundGroup=SettingsGroup("浏览器背景",new[]{SettingRow("背景样式","原图、亚克力，或只保留色调的大色块。",backgroundStyle)});settingsPage.Controls.Add(backgroundGroup);
+            var targets=library.State.ThemeTargets();
+            var edgeTheme=new Toggle{Checked=targets.Contains("edge"),AccessibleName="联动 Edge 标题栏"};var chromeTheme=new Toggle{Checked=targets.Contains("chrome"),AccessibleName="联动 Chrome 标题栏"};
+            EventHandler saveTargets=(s,e)=>{library.State.AutoThemeEdge=edgeTheme.Checked;library.State.AutoThemeChrome=chromeTheme.Checked;library.Save();};edgeTheme.CheckedChanged+=saveTargets;chromeTheme.CheckedChanged+=saveTargets;
+            var autoGroup=SettingsGroup("浏览器标题栏 · 试验",new[]{SettingRow("自动加载主题","需全屏过渡；会暂时占用浏览器焦点。",automaticTheme),SettingRow("Microsoft Edge","默认配置、单窗口；事先打开开发者模式。",edgeTheme),SettingRow("Google Chrome","可以与 Edge 同时开启，将依次加载。",chromeTheme)});settingsPage.Controls.Add(autoGroup);settingsPage.Controls.SetChildIndex(autoGroup,0);
+            autoThemeReport=Label(library.State.LastAutoThemeResult??"尚无自动加载结果",9,FontStyle.Regular,new Point(),new Size(620,72));settingsPage.Controls.Add(autoThemeReport);
+            settingsPage.Controls.SetChildIndex(autoThemeReport,1);settingsPage.Controls.SetChildIndex(backgroundGroup,0);
+            browserPage.Controls.Add(Label("标题栏自动加载选项位于「切换设置」，可同时开启 Edge 和 Chrome。",9,FontStyle.Regular,new Point(),new Size(620,34)));
             browserPage.Controls.Add(Label("新标签页只保留搜索和常用网址，不显示时间、日期。",9,FontStyle.Regular,new Point(),new Size(600,32)));browserPage.Controls.Add(Label("安装扩展会替换新标签页；标签栏配色仍需手动加载主题。",9,FontStyle.Regular,new Point(),new Size(620,32)));
             Action resizeGroups=()=>{int width=Math.Max(480,pages.ClientSize.Width-20);foreach(Control item in settingsPage.Controls)item.Width=width;foreach(Control item in browserPage.Controls)item.Width=width;};pages.Resize+=(s,e)=>resizeGroups();
             hero.Resize+=(s,e)=>{title.Width=subtitle.Width=paletteLabel.Width=Math.Max(120,hero.Width-308);};
@@ -127,7 +135,7 @@ namespace DeskShift {
         static Surface SettingsGroup(string caption,Panel[] rows){var card=new Surface{Width=660,Height=42+rows.Sum(r=>r.Height),Margin=new Padding(0,0,0,14)};card.Controls.Add(Label(caption,11,FontStyle.Bold,new Point(18,14),new Size(330,26)));int y=42;foreach(var row in rows){row.Location=new Point(16,y);row.Width=card.Width-32;row.Anchor=AnchorStyles.Left|AnchorStyles.Top|AnchorStyles.Right;card.Controls.Add(row);y+=row.Height;}return card;}
         Surface BrowserCard(string name,Label state,string browser){var card=new Surface{Width=660,Height=144,Margin=new Padding(0,0,0,14)};card.Controls.Add(Label(name,12,FontStyle.Bold,new Point(18,17),new Size(360,27)));card.Controls.Add(state);var install=Button("安装 "+(browser=="edge"?"Edge":"Chrome")+" 扩展",true);install.Location=new Point(18,96);install.Click+=(s,e)=>Open(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"browser",browser,"INSTALL.html"));card.Controls.Add(install);var export=Button("标题栏配色指南",false);export.Location=new Point(162,96);export.Click+=(s,e)=>{var active=library.State.Wallpapers.FirstOrDefault(w=>w.Id==library.State.ActiveId);var wallpaper=active??selected;if(wallpaper==null)return;try{string folder=library.ExportBrowser(wallpaper,browser,active==null?null:library.State.ActivePalette);Open(Path.Combine(folder,"HOW-TO.html"));Status(name+" 标题栏主题已准备，请按指南手动加载。");}catch(Exception ex){Error(ex);}};card.Controls.Add(export);return card;}
         void UpdateBrowserConnection(){var now=DateTime.UtcNow;connection.Text="新标签页壁纸与配色 · 常用网址\n"+(bridge!=null && (now-bridge.LastSeenChrome).TotalSeconds<8?"新标签页已连接，自动同步":"等待扩展连接");edgeConnection.Text="新标签页壁纸与配色 · 常用网址\n"+(bridge!=null && (now-bridge.LastSeenEdge).TotalSeconds<8?"新标签页已连接，自动同步":"等待扩展连接");}
-        void UpdateBrowserThemes(){var active=library.State.Wallpapers.FirstOrDefault(w=>w.Id==library.State.ActiveId);if(active==null){if(bridge!=null)bridge.Clear();return;}var palette=library.State.ActivePalette??library.Effective(active);foreach(string browser in new[]{"chrome","edge"})library.ExportBrowser(active,browser,palette);if(bridge!=null)bridge.Publish(active,palette);}
+        void UpdateBrowserThemes(){var active=library.State.Wallpapers.FirstOrDefault(w=>w.Id==library.State.ActiveId);if(active==null){if(bridge!=null)bridge.Clear();return;}var palette=library.State.ActivePalette??library.Effective(active);foreach(string browser in new[]{"chrome","edge"})library.ExportBrowser(active,browser,palette);if(bridge!=null)bridge.Publish(active,palette,library.State.BrowserBackgroundStyle);}
         static Panel SettingRow(string caption,string description,Control input){var row=new Panel{Height=72,BackColor=Color.White};row.Controls.Add(Label(caption,10,FontStyle.Regular,new Point(2,8),new Size(330,25)));row.Controls.Add(Label(description,8,FontStyle.Regular,new Point(2,35),new Size(400,22)));input.BackColor=input is Toggle?Color.White:Color.FromArgb(246,247,249);input.Anchor=AnchorStyles.Top|AnchorStyles.Right;row.Controls.Add(input);row.Resize+=(s,e)=>{input.Left=row.Width-input.Width-4;input.Top=(row.Height-input.Height)/2;};return row;}
         internal void CapturePreview(int page,string filename){navigation[page].PerformClick();Application.DoEvents();using(var bitmap=new Bitmap(Width,Height)){DrawToBitmap(bitmap,new Rectangle(0,0,bitmap.Width,bitmap.Height));bitmap.Save(filename);}}
         Image FloatingPreview(Wallpaper wallpaper){return cards.Controls.Cast<WallpaperCard>().First(c=>c.Item.Id==wallpaper.Id).PreviewImage;}
@@ -158,13 +166,23 @@ namespace DeskShift {
         async Task<string> TryBrowserTheme() {
             if(!library.State.AutoBrowserTheme)return "";
             var mask=transition;if(mask==null||!mask.Covered)return "；自动加载跳过：全屏覆盖未就绪";
-            string browser=library.State.AutoThemeBrowser=="chrome"?"chrome":"edge";
-            string folder=BrowserThemeLoader.Snapshot(Path.Combine(library.Root,"browser-themes",browser,"current"),library.Root);
-            using(var cancel=new CancellationTokenSource()) {
-                var load=Task.Run(()=>new BrowserThemeLoader(cancel.Token,()=>mask.Covered).Run(browser,folder));
-                if(await Task.WhenAny(load,Task.Delay(6800),mask.WhenDismissed)!=load){cancel.Cancel();return "；自动加载已取消或超时，请检查浏览器";}
-                return "；"+await load;
+            var browsers=library.State.ThemeTargets();if(browsers.Length==0)return "；自动加载跳过：未选择浏览器";
+            var results=new System.Collections.Generic.List<string>();var budget=Stopwatch.StartNew();
+            foreach(string browser in browsers) {
+                string name=browser=="edge"?"Edge":"Chrome";
+                if(!mask.Covered){results.Add(name+"：覆盖已结束，未执行");break;}
+                int remaining=browsers.Length==2?(int)(9000-budget.ElapsedMilliseconds):6500;
+                if(remaining<1500){results.Add(name+"：剩余时间不足，未执行");break;}int limit=Math.Min(6500,remaining);
+                string folder=BrowserThemeLoader.Snapshot(Path.Combine(library.Root,"browser-themes",browser,"current"),library.Root);
+                using(var cancel=new CancellationTokenSource()) {
+                    var loader=new BrowserThemeLoader(cancel.Token,()=>mask.Covered,limit);
+                    var load=Task.Run(()=>loader.Run(browser,folder));
+                    if(await Task.WhenAny(load,Task.Delay(limit+300),mask.WhenDismissed)!=load){cancel.Cancel();results.Add(name+"：自动加载取消或超时；后续浏览器未执行");break;}
+                    results.Add(name+"："+await load);
+                    if(loader.StopBatch){results.Add("后续浏览器未执行，请检查临时页面或文件选择框");break;}
+                }
             }
+            library.State.LastAutoThemeResult=String.Join("\n",results);library.Save();autoThemeReport.Text=library.State.LastAutoThemeResult;return "；"+String.Join("；",results);
         }
         async Task WithTransition(Palette palette,Func<Task> action) {
             if(!library.State.FullscreenTransition){await action();return;}
@@ -182,7 +200,7 @@ namespace DeskShift {
         async void Apply() {
             if(selected==null || busy)return;var wallpaper=selected;var palette=library.Effective(wallpaper);bool syncSystem=system.Checked;
             SetBusy(true);Status("正在应用桌面…");string browserResult="";
-            try{Status("正在后台准备原尺寸图片与主题…");PreparedTheme prepared=null;await RunBackground(()=>prepared=WindowsTheme.Prepare(library,wallpaper,palette,syncSystem));await WithTransition(palette,async()=>{await RunBackground(()=>{WindowsTheme.Apply(library,prepared,Progress);library.State.ActiveId=wallpaper.Id;library.State.ActivePalette=palette;library.Save();});UpdateBrowserThemes();ShowSelected();browserResult=await TryBrowserTheme();await Task.Delay(120);});Status("壁纸已切换"+(syncSystem?"，Windows 主题已提交":"")+"；已向 Chrome / Edge 新标签页发布壁纸与配色。"+browserResult);}catch(Exception ex){Error(ex);}finally{SetBusy(false);}
+            try{Status("正在后台准备原尺寸图片与主题…");PreparedTheme prepared=null;await RunBackground(()=>prepared=WindowsTheme.Prepare(library,wallpaper,palette,syncSystem));await WithTransition(palette,async()=>{foreach(string browser in library.State.ThemeTargets())library.ExportBrowser(wallpaper,browser,palette);browserResult=await TryBrowserTheme();await RunBackground(()=>{WindowsTheme.Apply(library,prepared,Progress);library.State.ActiveId=wallpaper.Id;library.State.ActivePalette=palette;library.Save();});UpdateBrowserThemes();ShowSelected();await Task.Delay(120);});Status("壁纸已切换"+(syncSystem?"，Windows 主题已提交":"")+"；已向 Chrome / Edge 新标签页发布壁纸与配色。"+browserResult);}catch(Exception ex){Error(ex);}finally{SetBusy(false);}
         }
         void Next() {if(busy || library.State.Wallpapers.Count==0)return;int i=library.State.Wallpapers.FindIndex(w=>w.Id==library.State.ActiveId);selected=library.State.Wallpapers[(i+1)%library.State.Wallpapers.Count];ShowSelected();Apply();}
         void SwitchWallpaper(Wallpaper wallpaper){if(busy || !library.State.Wallpapers.Contains(wallpaper))return;selected=wallpaper;ShowSelected();Apply();}
@@ -195,7 +213,7 @@ namespace DeskShift {
     static class Program {
         [STAThread] static void Main(string[] args) {
             Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
-            if(args.Contains("--theme-automation-test")){BrowserThemeLoader.Test();return;}
+            if(args.Contains("--theme-automation-test")){BrowserThemeLoader.Test(args.Contains("chrome")?"chrome":"edge");return;}
             if(args.Contains("--self-test")){
                 // Keep a real UI message loop alive while hidden-window tests await first paint.
                 using(var dispatcher=new Control()){var handle=dispatcher.Handle;dispatcher.BeginInvoke((Action)(()=>{try{SelfTest.Run();Environment.Exit(0);}catch(Exception e){System.IO.File.WriteAllText("test-output/failure.txt",e.ToString());Environment.Exit(1);}}));Application.Run();}return;

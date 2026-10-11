@@ -16,6 +16,10 @@ dist-shortcuts/
 dist-refined/
 dist-dark-browser/
 dist-auto-theme/
+dist-dual-browser/
+dist-acrylic/
+dist-background-styles/
+dist-publish/
 backups/
 *.pak
 test-output/
@@ -24,3 +28,6 @@ test-output/
 *.crx
 DeskShift-portable.zip
 DeskShift-auto-theme-experimental.zip
+DeskShift-dual-browser-experimental.zip
+DeskShift-acrylic.zip
+DeskShift-background-styles.zip

@@ -16,6 +16,7 @@ async function check(browser,offline){
  vm.runInContext(fs.readFileSync(folder+'/newtab.js','utf8'),context);await vm.runInContext('ready',context);
  assert.equal(styles['--accent'],theme.palette.Accent);assert.ok(nodes.wallpaper.style.backgroundImage.includes('blob:'));
  assert.equal(document.documentElement.dataset.mode,'light');
+ for(const style of ['original','acrylic','blocks']){vm.runInContext('applyPalette('+JSON.stringify({...theme,backgroundStyle:style})+')',context);assert.equal(document.documentElement.dataset.background,style);}
  vm.runInContext("applyPalette({palette:{Accent:'#373748',Background:'#14171F',Text:'#F4F5FA',Dark:true}})",context);assert.equal(document.documentElement.dataset.mode,'dark');
  vm.runInContext('applyPalette('+JSON.stringify(theme)+')',context);assert.equal(document.documentElement.dataset.mode,'light','Switching away from dark mode restores light controls');
  assert.equal(nodes.sites.children.length,9);assert.equal(nodes.sites.children[0].children[0].href,'https://github.com/');assert.ok(nodes.sites.children.slice(0,8).every(tile=>tile.children[0].href.startsWith('https://')));

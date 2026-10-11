@@ -66,6 +66,15 @@ namespace DeskShift {
         public bool ShowFloatingOrb {get;set;}
         public bool AutoBrowserTheme {get;set;}
         public string AutoThemeBrowser {get;set;}
+        public bool? AutoThemeEdge {get;set;}
+        public bool? AutoThemeChrome {get;set;}
+        public string LastAutoThemeResult {get;set;}
+        public string BrowserBackgroundStyle {get;set;}
+        public string[] ThemeTargets() {
+            bool legacy=AutoThemeEdge==null&&AutoThemeChrome==null;
+            bool edge=AutoThemeEdge??(legacy&&AutoThemeBrowser!="chrome"),chrome=AutoThemeChrome??(legacy&&AutoThemeBrowser=="chrome");
+            return new[]{edge?"edge":null,chrome?"chrome":null}.Where(name=>name!=null).ToArray();
+        }
         public bool HasOrbPosition {get;set;}
         public int OrbX {get;set;}
         public int OrbY {get;set;}
