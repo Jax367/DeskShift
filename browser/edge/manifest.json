@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "DeskShift · Edge 简洁新标签页",
-  "version": "1.4.0",
+  "version": "1.5.1",
   "description": "跟随桌面壁纸与配色，仅保留搜索和最常访问网址。",
   "permissions": [
     "storage",

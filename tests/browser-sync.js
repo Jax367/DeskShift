@@ -2,18 +2,20 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 const theme={revision:'test',palette:{Accent:'#587A68',Background:'#EEF4F0',Text:'#253C30'}};
 const sites=[{title:'GitHub',url:'https://github.com/'},{title:'Duplicate',url:'https://github.com/explore'},{title:'Blocked',url:'javascript:alert(1)'},{title:'Local',url:'file:///private'},{title:'Bad URL',url:'%%%'}];
 for(let i=0;i<10;i++)sites.push({title:'Site '+i,url:'https://example'+i+'.com/'});
-async function check(browser,offline){
+async function check(browser,offline,missingKey=false,oldVersion=false){
  const folder='browser/'+browser,manifest=JSON.parse(fs.readFileSync(folder+'/manifest.json','utf8'));
  assert.deepEqual(manifest.permissions,['storage','topSites','favicon']);assert.deepEqual(manifest.host_permissions,['http://127.0.0.1:47831/*']);assert.equal(manifest.chrome_url_overrides.newtab,'newtab.html');assert.ok(!manifest.permissions.includes('history'));
- const nodes={},styles={},requests=[],saved=[],timers=[],localData=offline?{theme}:{};let cached;
+ const nodes={},styles={},requests=[],saved=[],timers=[],localData=offline?{theme}:{};let cached,reloads=0;
  const node=()=>({children:[],value:'',style:{setProperty(k,v){this[k]=v;}},classList:{add(){},remove(){}},append(...items){this.children.push(...items);},replaceChildren(){this.children=[];},setAttribute(k,v){this[k]=v;},showModal(){this.open=true;},close(){this.open=false;},addEventListener(type,fn){this[type]=fn;},hidden:false});
  const document={hidden:false,documentElement:{dataset:{},style:{setProperty(k,v){styles[k]=v;}}},getElementById:id=>nodes[id] ||= node(),createElement:node,addEventListener(type,fn){this[type]=fn;}};
  class LocalURL extends URL{static createObjectURL(){return 'blob:local-preview';}static revokeObjectURL(){}}
  const context=vm.createContext({document,location:{href:''},URL:LocalURL,Image:class{async decode(){}},Response,Blob,AbortSignal:{timeout:()=>({})},setInterval:fn=>timers.push(fn),
- chrome:{runtime:{getManifest:()=>manifest,getURL:path=>'chrome-extension://test-id'+path},topSites:{get:fn=>fn(sites)},storage:{local:{get:async()=>({...localData}),set:async value=>{Object.assign(localData,value);saved.push(value);}}}},
+ chrome:{runtime:{getManifest:()=>oldVersion?{...manifest,version:'1.4.0'}:manifest,reload:()=>reloads++,getURL:path=>new URL(path,'chrome-extension://test-id/').href},topSites:{get:fn=>fn(sites)},storage:{local:{get:async()=>({...localData}),set:async value=>{Object.assign(localData,value);saved.push(value);}}}},
  caches:{open:async()=>({match:async()=>offline?new Response(new Blob(['original wallpaper bytes'],{type:'image/jpeg'})):undefined,put:async(key,response)=>cached=await response.blob()})},
- fetch:async url=>{requests.push(url);if(offline)throw Error('offline');return url.includes('/theme')?{ok:true,json:async()=>theme}:{ok:true,blob:async()=>new Blob(['original wallpaper bytes'],{type:'image/jpeg'})};}});
+ fetch:async (url,options)=>{if(url.startsWith('chrome-extension://'))return {ok:true,json:async()=>({key:missingKey?'':'a'.repeat(43),extensionVersion:manifest.version})};requests.push(url);assert.equal(options.headers['X-DeskShift-Key'],'a'.repeat(43));if(offline)throw Error('offline');return url.includes('/theme')?{ok:true,json:async()=>theme}:{ok:true,blob:async()=>new Blob(['original wallpaper bytes'],{type:'image/jpeg'})};}});
  vm.runInContext(fs.readFileSync(folder+'/newtab.js','utf8'),context);await vm.runInContext('ready',context);
+ if(oldVersion){assert.equal(reloads,1,'Old extension reloads its own manifest');await vm.runInContext('sync()',context);assert.equal(reloads,1,'A failed reload does not loop');assert.equal(requests.length,0);console.log('PASS '+browser+': original-directory update reloads once without losing shortcut storage');return;}
+ if(missingKey){assert.equal(requests.length,0,'Unpaired extension sends no bridge requests');assert.match(nodes.status.textContent,/修复扩展连接/);if(offline)assert.ok(nodes.wallpaper.style.backgroundImage.includes('blob:'),'Offline wallpaper survives missing credentials');console.log('PASS '+browser+': unpaired extension rejected; '+(offline?'offline cache retained':'no unauthenticated request'));return;}
  assert.equal(styles['--accent'],theme.palette.Accent);assert.ok(nodes.wallpaper.style.backgroundImage.includes('blob:'));
  assert.equal(document.documentElement.dataset.mode,'light');
  for(const style of ['original','acrylic','blocks']){vm.runInContext('applyPalette('+JSON.stringify({...theme,backgroundStyle:style})+')',context);assert.equal(document.documentElement.dataset.background,style);}
@@ -41,4 +43,4 @@ async function check(browser,offline){
  const count=requests.length;document.hidden=true;timers[0]();assert.equal(requests.length,count,'Inactive tabs do not poll');
  console.log('PASS '+browser+': '+(offline?'offline cache':'live wallpaper')+', automatic/manual sites, add/edit/delete/hide, unsafe URLs rejected, local storage, search');
 }
-(async()=>{for(const browser of ['chrome','edge'])for(const offline of [false,true])await check(browser,offline);})().catch(error=>{console.error(error);process.exitCode=1;});
+(async()=>{for(const browser of ['chrome','edge']){for(const offline of [false,true]){await check(browser,offline);await check(browser,offline,true);}await check(browser,false,false,true);}})().catch(error=>{console.error(error);process.exitCode=1;});

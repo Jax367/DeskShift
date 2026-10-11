@@ -12,7 +12,7 @@ using System.Threading;
 namespace DeskShift {
     public class RegistryValue { public string Path {get;set;} public string Name {get;set;} public bool Exists {get;set;} public string Kind {get;set;} public string Data {get;set;} }
     public class Snapshot { public string Wallpaper {get;set;} public string ActiveId {get;set;} public Palette ActivePalette {get;set;} public List<RegistryValue> Values {get;set;} }
-    public class PreparedTheme {public string Bitmap;public string ThemeFile;public Palette Palette;public bool SystemTheme;}
+    public class PreparedTheme {public string Bitmap;public Palette Palette;public bool SystemTheme;}
     public static class WindowsTheme {
         [DllImport("user32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern bool SystemParametersInfo(int action,int param,string value,int flags);
         [DllImport("user32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern bool SystemParametersInfo(int action,int param,StringBuilder value,int flags);
@@ -25,6 +25,8 @@ namespace DeskShift {
         static string Accent=@"Software\Microsoft\Windows\CurrentVersion\Explorer\Accent";
         static string Desktop=@"Control Panel\Desktop";
         static readonly string[][] Keys={new[]{Personalize,"AppsUseLightTheme"},new[]{Personalize,"SystemUsesLightTheme"},new[]{Personalize,"ColorPrevalence"},new[]{Dwm,"ColorizationColor"},new[]{Dwm,"AccentColor"},new[]{Dwm,"ColorPrevalence"},new[]{Accent,"AccentColorMenu"},new[]{Accent,"StartColorMenu"},new[]{Accent,"AccentPalette"},new[]{Desktop,"WallpaperStyle"},new[]{Desktop,"TileWallpaper"}};
+        internal static bool IsAllowedSetting(string path,string name){foreach(var pair in Keys)if(String.Equals(path,pair[0],StringComparison.OrdinalIgnoreCase)&&String.Equals(name,pair[1],StringComparison.OrdinalIgnoreCase))return true;return false;}
+        internal static RegistryValue[] AllowedRestoreValues(Snapshot snapshot){var values=new List<RegistryValue>();if(snapshot.Values!=null)foreach(var value in snapshot.Values)if(value!=null&&IsAllowedSetting(value.Path,value.Name))values.Add(value);return values.ToArray();}
         public static Snapshot Capture(string activeId) {
             var wallpaper=new StringBuilder(32768);if(!SystemParametersInfo(0x73,wallpaper.Capacity,wallpaper,0)) throw new Win32Exception(Marshal.GetLastWin32Error());
             var s=new Snapshot{Wallpaper=wallpaper.ToString(),ActiveId=activeId,Values=new List<RegistryValue>()};
@@ -34,12 +36,9 @@ namespace DeskShift {
             }
             return s;
         }
-        static void Set(string path,string name,object value) { using(var key=Registry.CurrentUser.CreateSubKey(path)) key.SetValue(name,value,value is byte[]?RegistryValueKind.Binary:value is string?RegistryValueKind.String:RegistryValueKind.DWord); }
+        static void Set(string path,string name,object value) {if(!IsAllowedSetting(path,name))throw new InvalidOperationException("拒绝修改配色和壁纸范围以外的系统设置。");using(var key=Registry.CurrentUser.CreateSubKey(path)) key.SetValue(name,value,value is byte[]?RegistryValueKind.Binary:value is string?RegistryValueKind.String:RegistryValueKind.DWord); }
         static void Wallpaper(string file) { if(!SystemParametersInfo(20,0,file,3)) throw new Win32Exception(Marshal.GetLastWin32Error()); }
         static void Broadcast() { IntPtr result;SendMessageTimeout(new IntPtr(0xffff),0x1a,IntPtr.Zero,"ImmersiveColorSet",2,1000,out result);SendMessageTimeout(new IntPtr(0xffff),0x320,IntPtr.Zero,null,2,1000,out result); }
-        public static string ThemeText(string file,Palette p) {
-            return "[Theme]\r\nDisplayName=DeskShift\r\n[Control Panel\\Desktop]\r\nWallpaper="+file+"\r\nWallpaperStyle=10\r\nTileWallpaper=0\r\n[VisualStyles]\r\nPath=%ResourceDir%\\Themes\\Aero\\Aero.msstyles\r\nColorStyle=NormalColor\r\nSize=NormalSize\r\nAutoColorization=0\r\nColorizationColor=0XFF"+p.Accent.Substring(1)+"\r\nAppMode="+(p.Dark?"Dark":"Light")+"\r\nSystemMode="+(p.Dark?"Dark":"Light")+"\r\n[MasterThemeSelector]\r\nMTSM=DABJDKT\r\n";
-        }
         public static string PrepareWallpaper(string root,Wallpaper w) {
             // Preserve decoded pixels and original dimensions. Never use the old resized cache.
             string path=Path.Combine(root,"desktop-original-v3-"+w.Id+".bmp");
@@ -51,11 +50,10 @@ namespace DeskShift {
             }finally{if(System.IO.File.Exists(temp))System.IO.File.Delete(temp);}
         }
         public static PreparedTheme Prepare(Library library,Wallpaper w,Palette p,bool system) {
-            string bmp=PrepareWallpaper(library.Root,w),theme=null;
-            if(system){theme=Path.Combine(library.Root,"prepared-"+w.Id+"-"+p.Accent.Substring(1)+"-"+(p.Dark?"dark":"light")+".theme");if(!System.IO.File.Exists(theme))System.IO.File.WriteAllText(theme,ThemeText(bmp,p),Encoding.Unicode);}
+            string bmp=PrepareWallpaper(library.Root,w);
             // Warm the filesystem cache before the full-screen animation begins.
             using(var stream=new FileStream(bmp,FileMode.Open,FileAccess.Read,FileShare.Read,1024*1024,FileOptions.SequentialScan)){byte[] buffer=new byte[1024*1024];while(stream.Read(buffer,0,buffer.Length)>0){}}
-            return new PreparedTheme{Bitmap=bmp,ThemeFile=theme,Palette=p,SystemTheme=system};
+            return new PreparedTheme{Bitmap=bmp,Palette=p,SystemTheme=system};
         }
         public static void WaitForRefresh(string expectedWallpaper) {
             // No public API can certify that every other application's theme has rendered.
@@ -65,6 +63,9 @@ namespace DeskShift {
             try{DwmFlush();Thread.Sleep(80);DwmFlush();}catch(DllNotFoundException){}catch(EntryPointNotFoundException){}
         }
         public static void Apply(Library library,PreparedTheme prepared,Action<string> progress) {
+            using(var pointers=new PointerPreservation())ApplyWithPreservedPointers(library,prepared,progress);
+        }
+        static void ApplyWithPreservedPointers(Library library,PreparedTheme prepared,Action<string> progress) {
             string bmp=prepared.Bitmap;Palette p=prepared.Palette;bool system=prepared.SystemTheme;
             progress("正在保存切换前的设置…");
             var snapshot=Capture(library.State.ActiveId);
@@ -79,8 +80,8 @@ namespace DeskShift {
                     Set(Personalize,"AppsUseLightTheme",p.Dark?0:1);Set(Personalize,"SystemUsesLightTheme",p.Dark?0:1);Set(Personalize,"ColorPrevalence",p.Dark?1:0);
                     Set(Dwm,"ColorizationColor",argb);Set(Dwm,"AccentColor",abgr);Set(Dwm,"ColorPrevalence",1);Set(Accent,"AccentColorMenu",abgr);Set(Accent,"StartColorMenu",abgr);
                     byte[] ramp=new byte[32];for(int i=0;i<8;i++) { Color c=Palette.Mix(a,i<3?Color.White:Color.Black,i<3?(3-i)*.16:(i-3)*.14);ramp[i*4]=c.R;ramp[i*4+1]=c.G;ramp[i*4+2]=c.B;ramp[i*4+3]=0xff; }Set(Accent,"AccentPalette",ramp);
-                    // Let Windows' theme engine refresh Explorer/DWM instead of undocumented DWM APIs.
-                    Process.Start(new ProcessStartInfo(prepared.ThemeFile){UseShellExecute=true});
+                    // Refresh only the explicit color settings. Never launch a Windows .theme:
+                    // the theme engine can also replace cursors, sounds, icons and visual styles.
                 }
                 progress("正在通知系统刷新…");Broadcast();progress("正在等待桌面刷新稳定…");WaitForRefresh(bmp);
             } catch(Exception e) {
@@ -88,7 +89,10 @@ namespace DeskShift {
             }
         }
         public static void RestoreSnapshot(Snapshot s) {
-            foreach(var v in s.Values) using(var key=Registry.CurrentUser.CreateSubKey(v.Path)) {
+            using(var pointers=new PointerPreservation())RestoreWithPreservedPointers(s);
+        }
+        static void RestoreWithPreservedPointers(Snapshot s) {
+            foreach(var v in AllowedRestoreValues(s)) using(var key=Registry.CurrentUser.CreateSubKey(v.Path)) {
                 if(!v.Exists) { key.DeleteValue(v.Name,false);continue; }
                 var kind=(RegistryValueKind)Enum.Parse(typeof(RegistryValueKind),v.Kind);object value;
                 if(kind==RegistryValueKind.Binary) value=Convert.FromBase64String(v.Data);

@@ -20,6 +20,15 @@ dist-dual-browser/
 dist-acrylic/
 dist-background-styles/
 dist-publish/
+dist-security/
+dist-scoped-colors/
+dist-repaired/
+DeskShift-repaired.zip
+!/releases/DeskShift-repaired.zip
+DeskShift-scoped-colors.zip
+DeskShift-security.zip
+**/connection.json
+bridge-key.dat
 backups/
 *.pak
 test-output/

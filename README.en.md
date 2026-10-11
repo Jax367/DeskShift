@@ -24,6 +24,10 @@ Website shortcuts use the browser’s original cached favicons and sit directly 
 
 ## Preview
 
+[Download the latest portable ZIP](https://github.com/Jax367/DeskShift/raw/refs/heads/main/releases/DeskShift-repaired.zip) · [Repair notes (Chinese)](docs/REPAIR.zh-CN.md) · [Security details (Chinese)](docs/SECURITY.zh-CN.md)
+
+The latest build adds a flowing gradient icon, theme-aware settings, desktop shortcuts and optional sign-in startup in the tray (off by default). Follow-wallpaper mode switches between light and dark; changing the mode applies it immediately. Windows updates are limited to wallpaper and colors, preserving current mouse settings and custom pointers. Existing DeskShift new-tab extension folders are repaired in place. Tab-strip automation remains optional and experimental; manual loading is the fallback.
+
 ![DeskShift desktop app — current UI is Simplified Chinese](docs/media/app-preview.png)
 
 A compact default window (about 940 × 660) separates wallpapers, switching settings and browser integration through a sidebar. Grouped settings use rounded cards and switches; smaller screens get a constrained window with scrolling.
@@ -81,7 +85,7 @@ Enable the floating orb in the switching settings under desktop shortcuts. Click
 Shortcuts can be selected automatically from the browser's most-visited sites or added manually with **Add website**. Manual links appear first, with automatic suggestions filling the remaining slots. Hover a tile and choose **⋯** to edit, delete or hide it. Turn off automatic suggestions in the dialog for a manual-only list. Hidden suggestions can be restored. Preferences are stored locally in the current browser and survive restarts.
 
 
-Load `browser/chrome` or `browser/edge` through Developer mode at `chrome://extensions` or `edge://extensions`. Keep the updated DeskShift running and apply a wallpaper. This replaces the new-tab page; startup URLs, home-button URLs and the browser's default search setting are unchanged.
+Start DeskShift and open the installation guide from Browser integration. Load the generated extension from `%LOCALAPPDATA%\DeskShift\browser-extensions\chrome` or `edge` through Developer mode at `chrome://extensions` or `edge://extensions`. Bundled browser files are templates without connection credentials. Keep DeskShift running and apply a wallpaper. This replaces the new-tab page; startup URLs, home-button URLs and the browser's default search setting are unchanged. Moving from an older extension directory may require adding manual shortcuts again. See the [security changes and remaining limits](docs/SECURITY.zh-CN.md).
 
 The page shows only wallpaper, search and up to eight most-visited sites from `topSites`, with host deduplication. It does not request full `history` access or send site lists anywhere. Chrome searches Google; Edge searches Bing. Browser-ranked sites can differ from Edge's pinned shortcuts. An empty history shows a short hint.
 
@@ -95,7 +99,7 @@ Choose Compressed original, Acrylic blur, or Abstract color blocks under Switch 
 | :--- | :--- | :--- |
 | Desktop | C# · .NET Framework 4.x · WinForms | Wallpaper library, controls, preview and tray |
 | Graphics | System.Drawing · GDI+ | Sampling, RGB color buckets, shaped overlays and geometry |
-| Windows | Win32 P/Invoke · Registry · `.theme` files | Full-resolution wallpaper, accent, light/dark mode and undo |
+| Windows | Win32 P/Invoke · Color registry allowlist | Full-resolution wallpaper, accent, light/dark mode and undo |
 | Animation resources | Background tasks · First-paint barrier · Window pool · LRU cache | Preparation, reuse and shared waiting frames across displays |
 | Browser extension | JavaScript · HTML · CSS · Manifest V3 · topSites | Minimal new tab, most-visited sites and wallpaper cache |
 | Local bridge | C# · TCP / HTTP · JSON | Read-only wallpaper and palette API with host/origin/revision checks |

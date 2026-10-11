@@ -1,7 +1,24 @@
 const base = 'http://127.0.0.1:47831';
 const browserName = chrome.runtime.getManifest().name.includes('Edge') ? 'edge' : 'chrome';
 let revision = '', loading = false, wallpaperURL = '';
+let connectionKey='';
 const status = document.getElementById('status');
+async function connectionHeaders() {
+  if(!connectionKey) {
+    try {
+      const response=await fetch(chrome.runtime.getURL('connection.json'),{cache:'no-store'});if(!response.ok)throw Error();const config=await response.json();if(!/^[A-Za-z0-9_-]{43}$/.test(config.key))throw Error();
+      const current=chrome.runtime.getManifest().version;
+      if(current && config.extensionVersion && current!==config.extensionVersion && typeof chrome.runtime.reload==='function') {
+        const saved=await chrome.storage.local.get('connectionReloadVersion');
+        if(saved.connectionReloadVersion!==config.extensionVersion){await chrome.storage.local.set({connectionReloadVersion:config.extensionVersion});chrome.runtime.reload();}
+        const error=Error('正在更新 DeskShift 扩展，请重新打开新标签页');error.needsConnection=true;throw error;
+      }
+      connectionKey=config.key;
+    }
+    catch(error) {if(error.needsConnection)throw error;const missing=Error('请从 DeskShift「浏览器联动」修复扩展连接');missing.needsConnection=true;throw missing;}
+  }
+  return {'X-DeskShift-Key':connectionKey};
+}
 
 function applyPalette(data) {
   const p = data && data.palette;
@@ -32,12 +49,13 @@ async function restore() {
 async function sync() {
   if (loading) return; loading = true;
   try {
-    const response = await fetch(base+'/theme?browser='+browserName,{signal:AbortSignal.timeout(3000)});
+    const headers=await connectionHeaders();
+    const response = await fetch(base+'/theme?browser='+browserName,{headers,signal:AbortSignal.timeout(3000)});
     if (!response.ok) throw Error('No active wallpaper');
     const data = await response.json();
     if (data.revision !== revision) {
       applyPalette(data);
-      const wallpaper = await fetch(base+'/wallpaper?revision='+encodeURIComponent(data.revision),{signal:AbortSignal.timeout(15000)});
+      const wallpaper = await fetch(base+'/wallpaper?revision='+encodeURIComponent(data.revision),{headers,signal:AbortSignal.timeout(15000)});
       if (!wallpaper.ok) throw Error('Wallpaper unavailable');
       const blob = await wallpaper.blob(); await displayWallpaper(blob);
       await chrome.storage.local.set({theme:data});
@@ -45,8 +63,8 @@ async function sync() {
       revision=data.revision;
     }
     status.textContent=''; status.classList.remove('warning');
-  } catch {
-    status.textContent=wallpaperURL?'DeskShift 离线 · 保留上次壁纸':'启动 DeskShift 并应用壁纸';
+  } catch(error) {
+    status.textContent=error.needsConnection?error.message:wallpaperURL?'DeskShift 离线 · 保留上次壁纸':'启动 DeskShift 并应用壁纸';
     status.classList.add('warning');
   } finally {loading=false;}
 }

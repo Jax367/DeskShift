@@ -15,7 +15,7 @@ namespace DeskShift {
         public int Stage;public double Amount;public double Seconds;
         public TransitionWindow(Rectangle bounds,Palette p,int effectStyle,int waitStyle) {
             palette=p;style=effectStyle;waitingStyle=waitStyle;resolution=bounds.Size;FormBorderStyle=FormBorderStyle.None;ShowInTaskbar=false;TopMost=true;StartPosition=FormStartPosition.Manual;Bounds=bounds;
-            AutoScaleMode=AutoScaleMode.None;DoubleBuffered=true;BackColor=Palette.ColorOf(p.Background);Cursor=Cursors.Default;
+            AutoScaleMode=AutoScaleMode.None;DoubleBuffered=true;BackColor=Palette.ColorOf(p.Background);Cursor=PointerPreservation.ForControl("Arrow",Cursors.Default);
         }
         protected override bool ShowWithoutActivation {get{return true;}}
         protected override CreateParams CreateParams {get{var p=base.CreateParams;p.ExStyle|=0x08000000|0x80|0x20;return p;}}

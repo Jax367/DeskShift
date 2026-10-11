@@ -24,6 +24,10 @@ DeskShift は Windows 向けのデスクトップ配色ツールです。壁紙�
 
 ## プレビュー
 
+[最新のポータブル ZIP をダウンロード](https://github.com/Jax367/DeskShift/raw/refs/heads/main/releases/DeskShift-repaired.zip) · [修正内容（中国語）](docs/REPAIR.zh-CN.md) · [安全性（中国語）](docs/SECURITY.zh-CN.md)
+
+最新バージョンでは、流れるグラデーションのアイコン、テーマに合わせた設定画面、デスクトップショートカット、ログイン時のトレイ起動（初期状態はオフ）を追加しました。壁紙に合わせた明暗切り替えと、モード変更の即時反映に対応。現在のマウス設定とカスタムカーソルを保持し、既存の DeskShift 拡張フォルダーを修復します。タブバーの自動読み込みは任意の実験機能で、失敗時は手動で読み込めます。
+
 ![DeskShift の画面 — 現在の UI は簡体字中国語](docs/media/app-preview.png)
 
 標準サイズは約 940 × 660。サイドバーで壁紙・切り替え設定・ブラウザー連携を分け、角丸カードとスイッチで設定を整理しました。小さい画面ではウィンドウを調整し、スクロールで操作できます。
@@ -81,7 +85,7 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 よく訪れるサイトを自動表示するほか、「添加网址」から手動で追加できます。手動のリンクを優先し、空いた枠を自動候補で補います。カードの「⋯」で編集・削除・候補の非表示が可能です。ダイアログの自動補充をオフにすると手動リストだけを表示します。非表示候補は復元でき、設定は現在のブラウザー内に保存して再起動後も保持します。
 
 
-`chrome://extensions` または `edge://extensions` の開発者モードで `browser/chrome` または `browser/edge` を読み込みます。新版 DeskShift を起動したまま壁紙を適用してください。新しいタブを置き換えますが、起動 URL・ホームボタン URL・ブラウザーの既定検索設定は変更しません。
+DeskShift を起動し、ブラウザー連携のインストールガイドを開きます。`chrome://extensions` または `edge://extensions` の開発者モードで `%LOCALAPPDATA%\DeskShift\browser-extensions\chrome` または `edge` の生成済み拡張を読み込みます。同梱ファイルは接続キーを含まないテンプレートです。DeskShift を起動したまま壁紙を適用してください。新しいタブを置き換えますが、起動 URL・ホームボタン URL・ブラウザーの既定検索設定は変更しません。旧フォルダーから移行すると、手動ショートカットの再登録が必要な場合があります。[安全性の変更と制限](docs/SECURITY.zh-CN.md)も参照してください。
 
 壁紙、検索、最大 8 件のよく訪れるサイトだけを表示します。`topSites` を使い、完全な `history` 権限は要求せず、サイト一覧も送信しません。Chrome は Google、Edge は Bing を検索します。ブラウザーが決める順位は Edge の固定ショートカットと異なる場合があります。
 
@@ -95,7 +99,7 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 | :--- | :--- | :--- |
 | デスクトップ | C# · .NET Framework 4.x · WinForms | 壁紙ライブラリ、設定、プレビュー、トレイ |
 | 描画 | System.Drawing · GDI+ | 色抽出、RGB の分類、マスク、幾何学アニメーション |
-| Windows 連携 | Win32 P/Invoke · レジストリ · `.theme` | 原寸壁紙、アクセント色、明暗モード、取り消し |
+| Windows 連携 | Win32 P/Invoke · 配色レジストリの許可リスト | 原寸壁紙、アクセント色、明暗モード、取り消し |
 | アニメーション素材 | バックグラウンド処理 · 初回描画の待機 · ウィンドウプール · LRU キャッシュ | 事前準備と再利用、複数画面での待機フレーム共有 |
 | ブラウザー拡張機能 | JavaScript · HTML · CSS · Manifest V3 · topSites | 新しいタブ、よく訪れるサイト、壁紙キャッシュ |
 | ローカル通信 | C# · TCP / HTTP · JSON | 壁紙・配色の読み取り専用 API |
